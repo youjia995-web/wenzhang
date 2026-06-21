@@ -1,11 +1,12 @@
-# Zeabur 部署配置 — Zeabur 会自动识别，但显式声明更稳
-# 这个文件放在 server/ 目录根
+# Zeabur 部署配置 (TOML 格式)
+# https://zeabur.com/docs/marketplace/format
 
 [build]
 command = "npm install && npm run build"
-# 启动前跑一次 migration（生产环境用 deploy，幂等）
-# 也可以在 Zeabur 的启动命令里手动写
 
 [[ports]]
 port = 3000
 type = "HTTP"
+
+# 健康检查路径（Zeabur 用来判断服务是否启动）
+# Zeabur 会通过 /health 端点判断服务存活
