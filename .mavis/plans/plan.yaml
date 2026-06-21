@@ -1,0 +1,415 @@
+version: 1
+plan:
+  name: '个人文章付费阅读项目行业调研 + 迭代方案'
+  max_concurrency: 10
+  max_consecutive_failures: 2
+  max_cycles: 6
+  auto_reject_retries: 1
+  verifier_config:
+    default_verifiers: [verifier]
+    audit_sample_rate: 0.0
+tasks:
+  # ========== Phase 1: 10 个并发调研任务（每任务 3-4 个内容，目标 30+ 素材） ==========
+
+  - id: t1-products
+    title: 调研典型付费阅读产品（国内外）
+    prompt: |
+      调研"个人文章付费阅读 / 知识付费"领域的典型产品，时间基准 2026-06-21。
+
+      **必查产品清单（至少 6 个）**：
+      1. Substack（国外 newsletter 付费标杆）
+      2. Patreon（创作者订阅）
+      3. Buy Me a Coffee（小额打赏）
+      4. Lemnos / Ghost Members（独立 newsletter）
+      5. 知识星球（国内付费社群）
+      6. 小报童（公众号生态 newsletter）
+      7. 得到 App（国内知识付费）
+      8. 虎嗅 / 36kr 付费会员（媒体付费墙）
+
+      **每个产品输出**：
+      - 基本信息（成立时间、规模、收费模式、目标用户）
+      - 单作者 vs 平台分成比例
+      - 内容保护机制（防爬、防盗用）
+      - 支付链路（个人收款码 vs 平台代收 vs 商业收款）
+      - 至少 1 个公开可验证的来源 URL（官网/新闻/财报/技术博客）
+      - 对**当前项目**（`/Users/huojin/Desktop/有偿文章阅读`，个人收款码 + Fastify + Prisma 的极简 MVP）的具体借鉴点（≥3 条）
+
+      **写入文件**：`/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t1-products.md`
+      **输出格式**：每个产品一个 H2 章节，最后一节"对当前项目借鉴总结"。
+
+      **时间预算**：15 分钟内完成。优先用 web_search + webfetch 获取公开信息。
+      **完成条件**：文件已写入且包含 ≥6 个产品的完整信息。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      独立审核 `/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t1-products.md`：
+      1. **数量验证**：是否真的覆盖 ≥6 个产品？逐个列出
+      2. **真实性验证**：随机抽 2 个产品，对照其官网/公开资料核对至少 3 个关键事实（成立时间/规模/收费模式）。**有任何一个错的直接 FAIL**
+      3. **借鉴价值验证**："对当前项目借鉴"部分是否真的针对 `/Users/huojin/Desktop/有偿文章阅读` 这个具体项目（个人收款码 + Fastify + Prisma），不是泛泛而谈
+      4. **来源验证**：每个产品至少有 1 个 URL，URL 是否真实可访问（用 webfetch 抽查 2 个）
+
+      **PASS/FAIL 标注**：每个产品都标可信度（高/中/低），最后给整体 PASS/FAIL
+    max_retries: 2
+
+  - id: t2-payment
+    title: 调研个人/小作者支付方案
+    prompt: |
+      调研个人创作者可用的支付方案，时间基准 2026-06-21。重点关注**非商户号方案**（用户场景就是只用个人收款码）。
+
+      **必查清单（至少 4 个）**：
+      1. 微信收款码 + 手动确认（用户当前方案）
+      2. 支付宝收款码 + 手动确认
+      3. 虎皮兰支付 / YunGouOS（个人微信/支付宝免签聚合）
+      4. Payjs / Zpay / 虎皮兰（个人小程序支付聚合）
+      5. Stripe Atlas / Lemon Squeezy（海外个人创作者收款）
+      6. Wise / 派安盈（个人跨境收款）
+
+      **每个方案输出**：
+      - 接入门槛（是否需要营业执照/商户号）
+      - 费率与到账时间
+      - 风险点（封号风险 / 合规风险 / 资金安全）
+      - 至少 1 个公开来源 URL（官网 / 评测 / 案例）
+      - 对**当前项目**的具体建议（保留/替换/补充）
+
+      **写入文件**：`/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t2-payment.md`
+      **输出格式**：每个方案一个 H2 章节，最后一节"当前项目支付方案评估"（保留 / 改进 / 增加）。
+
+      **时间预算**：15 分钟内完成。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      审核 `t2-payment.md`：
+      1. **数量**：≥4 个支付方案
+      2. **真实性**：随机抽 2 个方案验证费率/接入门槛
+      3. **针对性**：是否真的针对"个人收款码"这种 0 商户号场景，而不是泛泛而谈
+      4. **风险维度**：是否覆盖了合规/封号风险（这是用户最关心的）
+
+      **PASS/FAIL** + 每个方案可信度评级
+    max_retries: 2
+
+  - id: t3-content-protection
+    title: 调研付费内容保护技术
+    prompt: |
+      调研付费阅读内容保护技术（防白嫖、防爬、防盗用），时间基准 2026-06-21。
+
+      **必查清单（至少 4 个）**：
+      1. 服务端鉴权 + 解锁 token（用户当前方案）
+      2. 客户端 JS 解密（Substack/Ghost 用过，被破解过）
+      3. 浏览器指纹 + 设备绑定（防 token 共享）
+      4. 截图水印 / 动态签名（视觉追溯）
+      5. PDF 导出限制 / 复制限制（交互层防护）
+      6. 视频/音频内容 DRM（进阶场景）
+
+      **每个技术输出**：
+      - 工作原理（1-2 段）
+      - 攻击场景（怎么被破解的，真实案例）
+      - 实施成本（开发量 / 用户体验损耗）
+      - 至少 1 个来源 URL
+      - 对**当前项目**（Fastify + Prisma + Node.js）的可实施性
+
+      **写入文件**：`/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t3-content-protection.md`
+      **时间预算**：15 分钟内完成。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      审核 `t3-content-protection.md`：
+      1. **数量**：≥4 个保护技术
+      2. **真实性**：至少有 1 个真实案例（Substack 被破解 / 某站被爬虫攻破等）
+      3. **针对性**：对当前 Node.js + Prisma 栈的具体实施建议，不是泛泛而谈
+      4. **可实施性**：给出的建议是 1 天内可落地还是 1 个月
+
+      **PASS/FAIL** + 每个技术可信度
+    max_retries: 2
+
+  - id: t4-tech-architecture
+    title: 调研小作者付费站技术架构
+    prompt: |
+      调研适合个人/小团队的付费内容站技术架构，时间基准 2026-06-21。
+
+      **必查清单（至少 4 个）**：
+      1. Ghost + Ghost Members（开箱即用，集成 Stripe）
+      2. Hashnode（技术博客 + 付费）
+      3. WordPress + Memberpress / Restrict Content Pro
+      4. Astro / Next.js + Edge Functions（自建）
+      5. Lemmy / WriteFreely（自托管）
+      6. Serverless + Stripe Checkout（Vercel + Cloudflare）
+
+      **每个方案输出**：
+      - 技术栈（前端 / 后端 / DB / 部署）
+      - 自定义空间（能不能改解锁逻辑 / 加自己的支付）
+      - 学习成本
+      - 适合的人群（纯写作 / 半技术 / 全栈）
+      - 至少 1 个来源 URL
+      - 对**当前项目**（Node.js + Fastify + Prisma + Zeabur 单服务）的对比
+
+      **写入文件**：`/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t4-tech-architecture.md`
+      **时间预算**：15 分钟内完成。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      审核 `t4-tech-architecture.md`：
+      1. **数量**：≥4 个技术方案
+      2. **真实性**：至少 2 个有 GitHub 仓库或官网可访问
+      3. **针对性**：是否针对"个人作者"（不是企业级 SaaS）
+      4. **对比性**：是否真的和当前 Fastify 栈做了对比
+
+      **PASS/FAIL**
+    max_retries: 2
+
+  - id: t5-growth
+    title: 调研小作者运营增长策略
+    prompt: |
+      调研小作者付费内容的运营增长策略，时间基准 2026-06-21。
+
+      **必查清单（至少 4 个）**：
+      1. SEO 流量获取（Google + 必应中文 SEO）
+      2. 邮件订阅 + drip 推送（Mailchimp / Buttondown / Resend）
+      3. 会员制 vs 单篇制 vs 阶梯定价（pricing strategy）
+      4. Twitter / X / 公众号 私域引流
+      5. SEO 友好的文章结构（结构化数据 / sitemap / canonical）
+      6. 复购模型（如何让读者买第二次）
+
+      **每个策略输出**：
+      - 具体方法（≥3 条可操作建议）
+      - 真实案例（某个小作者怎么从 0 到 X 收入）
+      - 来源 URL
+      - 对**当前项目**的具体改进点
+
+      **写入文件**：`/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t5-growth.md`
+      **时间预算**：15 分钟内完成。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      审核 `t5-growth.md`：
+      1. **数量**：≥4 个增长策略
+      2. **真实性**：至少 1 个真实小作者案例（具体数字）
+      3. **可操作性**：建议是 24 小时内可执行，不是"做内容"这种空话
+      4. **针对性**：针对日收入 < 50 元的小作者，不是大 V
+
+      **PASS/FAIL**
+    max_retries: 2
+
+  - id: t6-compliance
+    title: 调研个人收款合规与税务
+    prompt: |
+      调研个人收款码做内容付费的合规与税务风险，时间基准 2026-06-21。
+
+      **必查清单（至少 3 个）**：
+      1. 微信支付商户号申请条件（个体户 / 有限公司 / 个人身份证的限制）
+      2. 个人收款码收款的合规风险（央行 2022 年 10 月新规、对个人码收款的限制）
+      3. 个人收入税务申报（劳务报酬 / 经营所得 / 增值税起征点）
+      4. 反洗钱 / 平台冻结 / 资金追溯风险
+      5. 海外用户收款（外汇管理 / 跨境支付）
+
+      **每个主题输出**：
+      - 现行规则（2026-06 截止的最新政策）
+      - 真实案例（有人被冻结/补税的具体例子）
+      - 至少 1 个来源 URL（政策原文 / 官方公告 / 媒体报道）
+      - 对**当前项目**（单日 < 50 元、只用个人收款码）的具体风险评估与建议
+
+      **写入文件**：`/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t6-compliance.md`
+      **时间预算**：15 分钟内完成。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      审核 `t6-compliance.md`：
+      1. **数量**：≥3 个合规/税务主题
+      2. **时效性**：政策引用是否在 2024 年后（不要用过时的）
+      3. **真实性**：央行/税务公告是否能追溯到原文
+      4. **针对性**：是否针对"日 < 50 元小作者"这种具体场景，不是泛泛而谈
+
+      **PASS/FAIL**
+    max_retries: 2
+
+  - id: t7-ux
+    title: 调研付费阅读 UX 优秀实践
+    prompt: |
+      调研付费阅读产品的优秀 UX 设计，时间基准 2026-06-21。
+
+      **必查清单（至少 4 个）**：
+      1. 优秀支付页设计（Stripe Checkout / Substack 付费墙 / 小报童付费卡）
+      2. 移动端 vs PC 端体验差异
+      3. 解锁后体验（如何让读者"觉得这钱花得值"）
+      4. 加载性能对转化率的影响（LCP / FID 优化）
+      5. 预览策略（前 20% / 30% / 三段式）
+      6. 退款 / 失败页设计（情感设计）
+
+      **每个主题输出**：
+      - 3-5 个具体设计建议
+      - 真实截图或案例（URL 即可）
+      - 转化率 / 用户体验数据（如有）
+      - 对**当前项目**（原生 JS SPA、无第三方 UI 库）的具体建议
+
+      **写入文件**：`/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t7-ux.md`
+      **时间预算**：15 分钟内完成。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      审核 `t7-ux.md`：
+      1. **数量**：≥4 个 UX 主题
+      2. **具体性**：是否给出可落地的设计建议，不是"重视用户体验"这种空话
+      3. **针对性**：对当前"原生 JS 单文件 SPA"的具体建议（不是 React/Vue 栈的）
+      4. **数据支撑**：至少有 1 个数据点（转化率 / 加载性能）
+
+      **PASS/FAIL**
+    max_retries: 2
+
+  - id: t8-cases
+    title: 调研真实小作者付费案例
+    prompt: |
+      调研真实运营的个人付费阅读案例（成功/失败都要），时间基准 2026-06-21。
+
+      **必查清单（至少 4 个）**：
+      1. 国内：小报童头部作者（如"半佛仙人"相关 newsletter 模式）
+      2. 国外：Substack 头部小作者案例（如 Casey Newton / Platformer）
+      3. Telegram Channel 付费订阅（典型小作者）
+      4. Discord 付费社群（小作者运营）
+      5. 知识星球头部 + 尾部作者的运营数据
+      6. 失败案例（为什么有些 newsletter 做不起来）
+
+      **每个案例输出**：
+      - 作者名 + 平台
+      - 定价 + 订阅人数 / 月收入
+      - 运营关键动作
+      - 至少 1 个来源 URL（推特 / 博客 / 公开访谈 / 第三方数据）
+      - 对**当前项目**（用户单日 < 50 元、个人收款码）的启发
+
+      **写入文件**：`/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t8-cases.md`
+      **时间预算**：15 分钟内完成。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      审核 `t8-cases.md`：
+      1. **数量**：≥4 个真实案例
+      2. **真实性**：至少有 2 个案例能追溯到具体作者/平台（不是虚构或泛指）
+      3. **数据真实性**：收入/订阅数是否有来源支撑（不要拍脑袋数字）
+      4. **启发性**：是否给出对"日 < 50 元小作者"的具体启发
+
+      **PASS/FAIL**
+    max_retries: 2
+
+  - id: t9-trends
+    title: 调研 2025-2026 新兴趋势
+    prompt: |
+      调研 2025-2026 付费内容领域的新兴趋势，时间基准 2026-06-21。
+
+      **必查清单（至少 3 个）**：
+      1. AI 生成内容（AIGC）对付费阅读的冲击
+      2. Web3 / 区块链付费内容（Mirror.xyz / Lens / Farcaster）
+      3. 视频号付费 / 抖音付费内容（国内新趋势）
+      4. 播客付费（Apple Podcasts Subscriptions / 小宇宙付费）
+      5. AI 代理订阅（让 AI 帮你读付费内容，工具如 smol.ai / Readwise Reader）
+      6. 跨平台身份与会员通兑
+
+      **每个趋势输出**：
+      - 现状（2025-2026 真实数据）
+      - 至少 1 个真实案例
+      - 来源 URL
+      - 对**当前项目**的影响（机会 / 威胁 / 中性）
+
+      **写入文件**：`/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t9-trends.md`
+      **时间预算**：15 分钟内完成。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      审核 `t9-trends.md`：
+      1. **数量**：≥3 个趋势
+      2. **时效性**：是否在 2025-2026 真实存在（不是几年前的趋势）
+      3. **真实性**：每个趋势都有真实案例 URL
+      4. **针对小作者**：是否给出对小作者的具体建议
+
+      **PASS/FAIL**
+    max_retries: 2
+
+  - id: t10-ai
+    title: 调研 AI 在付费内容产品中的应用
+    prompt: |
+      调研 AI 在付费内容产品中的实际应用，时间基准 2026-06-21。
+
+      **必查清单（至少 3 个）**：
+      1. AI 辅助写作（GPT-5 / Claude 4 时代的写作流）
+      2. AI 翻译 / 校对（让中文内容出海）
+      3. AI 客服 / FAQ 自动应答
+      4. AI 推荐系统（给小作者做"相关阅读"）
+      5. AI 生成摘要（做邮件订阅的 preview）
+      6. 知识库 + RAG（让作者把内容变成可对话的 AI 助理）
+
+      **每个应用输出**：
+      - 真实产品案例（公司名 + URL）
+      - 实施成本（API 价格 / 工程量）
+      - 对**当前项目**的具体集成方案（Fastify + Prisma 栈）
+
+      **写入文件**：`/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t10-ai.md`
+      **时间预算**：15 分钟内完成。
+    assigned_to: general
+    verified_by: verifier
+    verify_prompt: |
+      审核 `t10-ai.md`：
+      1. **数量**：≥3 个 AI 应用
+      2. **真实性**：至少 2 个有真实产品 URL
+      3. **针对性**：对 Fastify + Prisma 栈的具体集成建议（不是 React/Vue 栈）
+      4. **成本估算**：是否给出 API 价格 / 月成本
+
+      **PASS/FAIL**
+    max_retries: 2
+
+  # ========== Phase 2: 综合（依赖 t1-t10 全部完成） ==========
+
+  - id: t11-synthesize
+    title: 综合所有调研产出迭代方案
+    prompt: |
+      综合 t1-t10 共 10 份调研报告，产出针对 `/Users/huojin/Desktop/有偿文章阅读/` 项目的**迭代方案**。
+
+      **必读文件**：
+      - `/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/research/t1-products.md`
+      - `t2-payment.md` ~ `t10-ai.md`（共 9 份）
+      - 项目源码：`/Users/huojin/Desktop/有偿文章阅读/server/src/**` 和 `/Users/huojin/Desktop/有偿文章阅读/web/**`
+      - 现有方案文档：`/Users/huojin/Desktop/有偿文章阅读/docs/实施方案.md`
+
+      **迭代方案结构**：
+
+      1. **现状总结**（基于源码分析）
+         - 当前架构
+         - 现有功能
+         - 当前短板
+
+      2. **调研关键发现**（10 份报告的精炼，每份 3-5 条最关键结论）
+
+      3. **迭代路线图**（按优先级排序）
+         - **P0（必须做，本周）**：紧急改进
+         - **P1（建议做，本月）**：体验优化
+         - **P2（规划做，季度）**：功能扩展
+         - **P3（观望）**：待技术成熟再做
+
+      每个迭代项必须包含：
+      - **问题**：当前痛点（引用调研依据 + 现有代码定位）
+      - **方案**：具体怎么改（代码级别，不是 PPT）
+      - **工作量**：人天估算
+      - **风险**：可能踩的坑
+      - **验收标准**：怎么判断做完了
+
+      4. **不建议做的事**（基于调研得出的"看起来好但别做"清单，至少 3 条）
+
+      5. **3 个月时间线**（可视化表格或文字）
+
+      **写入文件**：`/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/iteration-plan.md`
+
+      **时间预算**：30 分钟内完成。
+    assigned_to: general
+    depends_on: [t1-products, t2-payment, t3-content-protection, t4-tech-architecture, t5-growth, t6-compliance, t7-ux, t8-cases, t9-trends, t10-ai]
+    verified_by: verifier
+    verify_prompt: |
+      **独立审核** `/Users/huojin/Desktop/有偿文章阅读/.mavis/plans/iteration-plan.md`：
+
+      1. **结构完整性**：是否包含 现状/调研发现/路线图(P0-P3)/不建议/时间线 全部 5 部分？
+      2. **针对现有项目**：
+         - 打开 `server/src/routes/payment.ts`，找出问题点是否真在调研报告里被识别
+         - 打开 `web/app.js`，检查 UX 建议是否真的针对"原生 JS SPA"（不是 React/Vue）
+         - 检查 schema.prisma，确认支付链路建议是否对接现有数据模型
+      3. **可行性**：P0 项目的"工作量"估算是否合理（不是拍脑袋）
+      4. **反例**："不建议做的事"部分是否真的给出有说服力的论证
+      5. **时间线合理性**：3 个月时间线是否在 1 人小作者的能力范围内
+      6. **方案可执行性**：抽 1 个 P0 项目，看是否能直接拆成具体的代码改动任务
+
+      **PASS/FAIL**，并列出 3 条最强的迭代建议和 3 条最值得怀疑的建议。
+    max_retries: 2

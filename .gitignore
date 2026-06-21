@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+.pnp/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Runtime
+.DS_Store
+*.pid
+*.seed
+*.pid.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test
+coverage/
+.nyc_output/
+
+# Prisma
+prisma/migrations/dev.db*
+
+# Zeabur / Vercel
+.zeabur/
+.vercel/
+
+# Mavis plan workspace — 保留 research/（项目文档），排除 worker 内部状态
+.mavis/plans/*/notes/
+.mavis/plans/*/outputs/
+.mavis/plans/*/workspace/
+.mavis/plans/*/state.json
+.mavis/plans/*/board.md
+.mavis/plans/decision-*.json
+# 注：.mavis/plans/research/*.md 保留（行业调研 + 迭代方案）
+# 注：.mavis/plans/iteration-plan.md 保留
+
+# 用户保存的微信图片等本地临时文件
+微信图片_*.jpg
+微信图片_*.png
+微信截图_*.png
+截图*.png
+Screenshot*.png

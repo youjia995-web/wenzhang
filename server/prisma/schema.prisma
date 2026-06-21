@@ -1,0 +1,113 @@
+// 个人作者付费阅读 — 极简数据模型
+// 核心：文章 + 收款码 + 订单 + 解锁凭证
+// 单作者不抽 Author 表，直接用环境变量里的 ADMIN_PASSWORD 鉴权
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum OrderStatus {
+  /// 已创建，等读者付款
+  PENDING
+  /// 读者点了"我已支付"，等作者确认
+  AWAITING_CONFIRM
+  /// 作者已确认收款，文章已解锁
+  CONFIRMED
+  /// 作者判定未到账，撤销
+  REJECTED
+  /// 超时未支付
+  EXPIRED
+}
+
+model PaymentQR {
+  id        String   @id @default(cuid())
+  /// 图片 base64（PNG 一般 < 50KB，整库可控）
+  imageBase64 String @db.Text
+  /// 备注：例如"微信-主号"、"微信-备用号"
+  label     String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Post {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  title       String
+  summary     String
+  /// 公开预览（建议 20-30% 内容）
+  preview     String     @db.Text
+  /// 完整内容（付费后返回）
+  content     String     @db.Text
+  coverUrl    String?
+  /// 金额（分），避免浮点
+  priceCents  Int        @default(990)
+  status      PostStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  orders      Order[]
+  unlocks     Unlock[]
+
+  @@index([status, publishedAt])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  /// 6 位订单号（便于读者/作者记忆与对账）
+  orderNo         String      @unique
+  status          OrderStatus @default(PENDING)
+
+  amountCents     Int
+  /// 支付者指纹（reader_token cookie 的 hash，用于防白嫖：同一读者同一文章只有 1 个 PENDING）
+  payerFingerprint String
+
+  postId          String
+  post            Post        @relation(fields: [postId], references: [id])
+  /// 下单时选定的收款码快照（防止作者改默认码导致对账错位）
+  paymentQrId     String
+
+  /// 读者点"我已支付"的时间
+  awaitingConfirmAt DateTime?
+  /// 作者确认/拒绝的时间
+  confirmedAt     DateTime?
+  /// 拒绝原因（可选）
+  rejectReason    String?
+
+  /// 订单过期时间（默认 30 分钟未付款即过期）
+  expiredAt       DateTime
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  unlock          Unlock?
+
+  @@index([status, createdAt])
+  @@index([status, expiredAt])
+}
+
+/// 作者确认订单后写入；读者持 unlockToken 取完整内容
+model Unlock {
+  id           String   @id @default(cuid())
+  token        String   @unique
+  orderId      String   @unique
+  order        Order    @relation(fields: [orderId], references: [id])
+  postId       String
+  post         Post     @relation(fields: [postId], references: [id])
+  payerFingerprint String
+  accessCount  Int      @default(0)
+  lastAccessAt DateTime?
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+}
