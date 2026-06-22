@@ -487,30 +487,36 @@ function setupUpload() {
   };
 
   async function uploadFile(f) {
-    if (f.size > 200 * 1024) {
-      status.textContent = '图片过大，请压缩到 200KB 以内';
+    status.classList.remove('ok');
+    if (!/^image\/(png|jpeg)$/.test(f.type)) {
+      status.textContent = '请选择 PNG 或 JPG 图片';
       return;
     }
-    if (!label.value.trim()) {
-      status.textContent = '请先填写备注';
-      label.focus();
+    if (f.size > 2 * 1024 * 1024) {
+      status.textContent = '图片过大，请压缩到 2MB 以内';
       return;
     }
+    const qrLabel = label.value.trim() || '微信收款码';
     status.textContent = '上传中...';
     const reader = new FileReader();
     reader.onload = async () => {
       try {
         await api('/api/admin/qrs', {
           method: 'POST',
-          body: JSON.stringify({ label: label.value.trim(), imageBase64: reader.result }),
+          body: JSON.stringify({ label: qrLabel, imageBase64: reader.result }),
         });
         status.classList.add('ok');
         status.textContent = '✓ 上传成功';
         label.value = '';
         await loadQRList();
       } catch (e) {
-        status.textContent = '失败：' + e.message;
+        status.classList.remove('ok');
+        status.textContent = '失败：' + (e.data?.error || e.message);
       }
+    };
+    reader.onerror = () => {
+      status.classList.remove('ok');
+      status.textContent = '读取图片失败，请换一张图片重试';
     };
     reader.readAsDataURL(f);
   }
@@ -569,12 +575,8 @@ function adminNavPills(active) {
     { hash: '#/admin/qrs', label: '收款码' },
   ];
   return `<nav class="nav-pills">${items.map(i =>
-    `<a href="${i.hash}" class="${active === activePageName(active) ? 'active' : ''}">${i.label}</a>`
+    `<a href="${i.hash}" class="${active === i.hash.split('/').pop() ? 'active' : ''}">${i.label}</a>`
   ).join('')}</nav>`;
-}
-
-function activePageName(active) {
-  return active; // simple
 }
 
 async function renderAdminOrders(root) {

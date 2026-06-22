@@ -11,6 +11,7 @@
 // 10. 文章 CRUD（GET/POST/PUT/DELETE）
 
 import type { FastifyInstance } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { signAdminJwt, verifyAdminJwt, genUnlockToken } from '../lib/crypto.js';
@@ -76,7 +77,7 @@ export async function adminRoutes(app: FastifyInstance) {
       label: z.string().min(1).max(50),
       /// 完整 dataURL：data:image/png;base64,xxxx
       /// 服务端只存 base64 主体（去掉前缀），但允许前端传带前缀的
-      imageBase64: z.string().min(100).max(800_000), // ≤ 600KB base64
+      imageBase64: z.string().min(100).max(2_800_000), // roughly <= 2MB image file
     });
 
     instance.post('/api/admin/qrs', async (req, reply) => {
@@ -86,17 +87,16 @@ export async function adminRoutes(app: FastifyInstance) {
       if (!/^[A-Za-z0-9+/=]+$/.test(base64)) {
         return reply.code(400).send({ error: 'invalid_base64' });
       }
-      // 限制：原图 ≤ 200KB（base64 ≈ 270KB），已通过 zod 限制
       // 上传一张新码时，把其他码停用（保证只有一张激活）
-      const [qr] = await prisma.$transaction([
-        prisma.paymentQR.create({
-          data: { label: data.label, imageBase64: base64, isActive: true },
-        }),
-        prisma.paymentQR.updateMany({
+      const qr = await prisma.$transaction(async (tx) => {
+        await tx.paymentQR.updateMany({
           where: { isActive: true },
           data: { isActive: false },
-        }),
-      ]);
+        });
+        return tx.paymentQR.create({
+          data: { label: data.label, imageBase64: base64, isActive: true },
+        });
+      });
       return { qr: { id: qr.id, label: qr.label, isActive: qr.isActive } };
     });
 
@@ -191,26 +191,39 @@ export async function adminRoutes(app: FastifyInstance) {
         });
         return { post };
       } catch (e) {
-        return reply.code(409).send({ error: 'slug_taken' });
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          return reply.code(409).send({ error: 'slug_taken' });
+        }
+        req.log.error({ err: e }, 'failed to create post');
+        return reply.code(500).send({ error: 'post_create_failed' });
       }
     });
 
     instance.put('/api/admin/posts/:id', async (req, reply) => {
       const { id } = req.params as { id: string };
       const data = postSchema.partial().parse(req.body);
-      const post = await prisma.post.update({
-        where: { id },
-        data: {
-          ...data,
-          publishedAt:
-            data.status === 'PUBLISHED'
-              ? new Date()
-              : data.status === 'DRAFT' || data.status === 'ARCHIVED'
-                ? null
-                : undefined,
-        },
-      });
-      return { post };
+      try {
+        const post = await prisma.post.update({
+          where: { id },
+          data: {
+            ...data,
+            publishedAt:
+              data.status === 'PUBLISHED'
+                ? new Date()
+                : data.status === 'DRAFT' || data.status === 'ARCHIVED'
+                  ? null
+                  : undefined,
+          },
+        });
+        return { post };
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError) {
+          if (e.code === 'P2002') return reply.code(409).send({ error: 'slug_taken' });
+          if (e.code === 'P2025') return reply.code(404).send({ error: 'post_not_found' });
+        }
+        req.log.error({ err: e }, 'failed to update post');
+        return reply.code(500).send({ error: 'post_update_failed' });
+      }
     });
 
     instance.get('/api/admin/posts', async () => {
