@@ -147,27 +147,39 @@ export async function adminRoutes(app: FastifyInstance) {
     });
 
     // 确认订单 → 生成 unlock
-    instance.post('/api/admin/orders/:id/confirm', async (req) => {
+    instance.post('/api/admin/orders/:id/confirm', async (req, reply) => {
       const { id } = req.params as { id: string };
-      const token = genUnlockToken();
-      await prisma.$transaction(async (tx) => {
-        const order = await tx.order.findUnique({ where: { id } });
-        if (!order) throw new Error('order_not_found');
-        if (order.status === 'CONFIRMED') return; // 幂等
-        await tx.order.update({
-          where: { id },
-          data: { status: 'CONFIRMED', confirmedAt: new Date() },
+      try {
+        await prisma.$transaction(async (tx) => {
+          const order = await tx.order.findUnique({
+            where: { id },
+            include: { unlock: { select: { id: true } } },
+          });
+          if (!order) throw new Error('order_not_found');
+          if (order.status === 'CONFIRMED' && order.unlock) return;
+          await tx.order.update({
+            where: { id },
+            data: { status: 'CONFIRMED', confirmedAt: new Date() },
+          });
+          await tx.unlock.upsert({
+            where: { orderId: order.id },
+            update: {},
+            create: {
+              token: genUnlockToken(),
+              orderId: order.id,
+              postId: order.postId,
+              payerFingerprint: order.payerFingerprint,
+            },
+          });
         });
-        await tx.unlock.create({
-          data: {
-            token,
-            orderId: order.id,
-            postId: order.postId,
-            payerFingerprint: order.payerFingerprint,
-          },
-        });
-      });
-      return { ok: true };
+        return { ok: true };
+      } catch (e) {
+        if (e instanceof Error && e.message === 'order_not_found') {
+          return reply.code(404).send({ error: 'order_not_found' });
+        }
+        req.log.error({ err: e }, 'failed to confirm order');
+        return reply.code(500).send({ error: 'order_confirm_failed' });
+      }
     });
 
     instance.post('/api/admin/orders/:id/reject', async (req) => {

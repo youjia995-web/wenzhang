@@ -57,8 +57,8 @@ export async function paymentRoutes(app: FastifyInstance) {
       return {
         orderNo: existing.orderNo,
         amountCents: existing.amountCents,
-        qrImage: qr.imageBase64,
-        qrLabel: qr.label,
+        qrImage: existing.paymentQrImageBase64 ?? qr.imageBase64,
+        qrLabel: existing.paymentQrLabel ?? qr.label,
         expiredAt: existing.expiredAt,
         status: existing.status,
         reused: true,
@@ -72,6 +72,8 @@ export async function paymentRoutes(app: FastifyInstance) {
         postId: post.id,
         payerFingerprint: fingerprint,
         paymentQrId: qr.id,
+        paymentQrImageBase64: qr.imageBase64,
+        paymentQrLabel: qr.label,
         expiredAt: new Date(Date.now() + ORDER_TTL_MIN * 60_000),
       },
     });

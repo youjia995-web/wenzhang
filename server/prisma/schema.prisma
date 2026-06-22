@@ -63,6 +63,8 @@ model Order {
   post            Post        @relation(fields: [postId], references: [id])
   /// 下单时选定的收款码快照（防止作者改默认码导致对账错位）
   paymentQrId     String
+  paymentQrImageBase64 String?
+  paymentQrLabel  String?
 
   /// 读者点"我已支付"的时间
   awaitingConfirmAt DateTime?

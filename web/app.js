@@ -453,7 +453,7 @@ async function renderAdminQRs(root) {
       <div class="upload-zone" id="uploadZone">
         ${Icon.upload}
         <p>点击或拖拽图片到这里</p>
-        <p style="font-size: 12px; margin-top: var(--sp-2);">PNG / JPG · ≤ 200KB</p>
+        <p style="font-size: 12px; margin-top: var(--sp-2);">PNG / JPG · ≤ 2MB</p>
         <input type="file" id="qrFile" accept="image/png,image/jpeg" hidden />
       </div>
       <div class="form-group" style="margin-top: var(--sp-4);">

@@ -6,6 +6,7 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { genReaderToken } from '../lib/crypto.js';
+import { hashFingerprint } from '../lib/fingerprint.js';
 
 const READER_TOKEN_COOKIE = 'reader_token';
 const UNLOCK_TOKEN_HEADER = 'x-unlock-token';
@@ -64,13 +65,14 @@ export async function publicRoutes(app: FastifyInstance) {
     }
 
     const unlockToken = req.headers[UNLOCK_TOKEN_HEADER] as string | undefined;
+    const readerToken = req.cookies[READER_TOKEN_COOKIE];
     let unlocked = false;
-    if (unlockToken) {
+    if (unlockToken && readerToken) {
       const unlock = await prisma.unlock.findUnique({
         where: { token: unlockToken },
-        select: { postId: true, expiresAt: true },
+        select: { postId: true, expiresAt: true, payerFingerprint: true },
       });
-      if (unlock && unlock.postId === post.id) {
+      if (unlock && unlock.postId === post.id && unlock.payerFingerprint === hashFingerprint([readerToken])) {
         if (!unlock.expiresAt || unlock.expiresAt > new Date()) {
           unlocked = true;
         }
@@ -84,25 +86,32 @@ export async function publicRoutes(app: FastifyInstance) {
   app.get('/api/posts/:slug/content', async (req, reply) => {
     const { slug } = req.params as { slug: string };
     const unlockToken = req.headers[UNLOCK_TOKEN_HEADER] as string | undefined;
+    const readerToken = req.cookies[READER_TOKEN_COOKIE];
     if (!unlockToken) {
       return reply.code(402).send({ error: 'payment_required' });
+    }
+    if (!readerToken) {
+      return reply.code(400).send({ error: 'reader_token_missing' });
     }
 
     const post = await prisma.post.findUnique({
       where: { slug },
       select: { id: true, content: true, status: true },
     });
-    if (!post || post.status !== 'PUBLISHED') {
+    if (!post || (post.status !== 'PUBLISHED' && post.status !== 'ARCHIVED')) {
       return reply.code(404).send({ error: 'not_found' });
     }
 
     const unlock = await prisma.unlock.findUnique({
       where: { token: unlockToken },
-      select: { postId: true, expiresAt: true, accessCount: true },
+      select: { postId: true, expiresAt: true, accessCount: true, payerFingerprint: true },
     });
 
     if (!unlock || unlock.postId !== post.id) {
       return reply.code(403).send({ error: 'invalid_unlock_token' });
+    }
+    if (unlock.payerFingerprint !== hashFingerprint([readerToken])) {
+      return reply.code(403).send({ error: 'fingerprint_mismatch' });
     }
     if (unlock.expiresAt && unlock.expiresAt < new Date()) {
       return reply.code(403).send({ error: 'unlock_expired' });
