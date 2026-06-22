@@ -38,6 +38,13 @@ coverage/
 # Prisma
 prisma/migrations/dev.db*
 
+# SQLite 本地数据库文件
+data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
 # Zeabur / Vercel
 .zeabur/
 .vercel/

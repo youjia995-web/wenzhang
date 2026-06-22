@@ -1,4 +1,4 @@
-// 个人作者付费阅读 — 极简数据模型
+// 个人作者付费阅读 — 极简数据模型（SQLite 单文件）
 // 核心：文章 + 收款码 + 订单 + 解锁凭证
 // 单作者不抽 Author 表，直接用环境变量里的 ADMIN_PASSWORD 鉴权
 
@@ -7,33 +7,16 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-enum PostStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-}
-
-enum OrderStatus {
-  /// 已创建，等读者付款
-  PENDING
-  /// 读者点了"我已支付"，等作者确认
-  AWAITING_CONFIRM
-  /// 作者已确认收款，文章已解锁
-  CONFIRMED
-  /// 作者判定未到账，撤销
-  REJECTED
-  /// 超时未支付
-  EXPIRED
-}
-
+/// Post.status 取值: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
+/// SQLite 无 enum，用 String + 注释 + Zod 校验
 model PaymentQR {
   id        String   @id @default(cuid())
   /// 图片 base64（PNG 一般 < 50KB，整库可控）
-  imageBase64 String @db.Text
+  imageBase64 String
   /// 备注：例如"微信-主号"、"微信-备用号"
   label     String
   isActive  Boolean  @default(true)
@@ -47,13 +30,14 @@ model Post {
   title       String
   summary     String
   /// 公开预览（建议 20-30% 内容）
-  preview     String     @db.Text
+  preview     String
   /// 完整内容（付费后返回）
-  content     String     @db.Text
+  content     String
   coverUrl    String?
   /// 金额（分），避免浮点
   priceCents  Int        @default(990)
-  status      PostStatus @default(DRAFT)
+  /// 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
+  status      String     @default("DRAFT")
   publishedAt DateTime?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
@@ -68,7 +52,8 @@ model Order {
   id              String      @id @default(cuid())
   /// 6 位订单号（便于读者/作者记忆与对账）
   orderNo         String      @unique
-  status          OrderStatus @default(PENDING)
+  /// 'PENDING' | 'AWAITING_CONFIRM' | 'CONFIRMED' | 'REJECTED' | 'EXPIRED'
+  status          String      @default("PENDING")
 
   amountCents     Int
   /// 支付者指纹（reader_token cookie 的 hash，用于防白嫖：同一读者同一文章只有 1 个 PENDING）

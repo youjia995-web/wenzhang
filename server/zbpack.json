@@ -7,7 +7,7 @@ command = "npm install && npm run build"
 
 [start]
 # 先跑 prisma migrate deploy（幂等的，生产用 deploy 不是 dev），再启动 Node 服务
-# 注意：npm install 已经跑了 postinstall -> prisma generate，所以这里不需要再 generate
+# DATABASE_URL 默认为 file:/data/prod.db（见 [volume] 段），SQLite 文件落在持久卷里
 command = "npx prisma migrate deploy && npm start"
 
 # 健康检查 — Zeabur 用这个端点判断服务是否存活
@@ -20,5 +20,8 @@ port = 3000
 port = 3000
 type = "HTTP"
 
-# 只监听 server/ 目录变更，触发热重部署（可选）
-# watch = ["src/**", "prisma/**", "package.json"]
+# 持久卷 — SQLite 文件存这里，容器重启/重新部署都不会丢数据
+# 也可在 Zeabur 控制台手动 Add Volume（Mount Path=/data）
+[[volume]]
+name = "data"
+mountPath = "/data"

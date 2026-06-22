@@ -7,7 +7,10 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   HOST: z.string().default('0.0.0.0'),
 
-  DATABASE_URL: z.string().url(),
+  // SQLite 文件路径（不是 URL，但 zod.url() 不合适，改成 string）
+  // 本地开发: file:./data/dev.db（相对 cwd/server）
+  // Zeabur 生产: file:/data/prod.db（持久卷挂载点，重启不丢）
+  DATABASE_URL: z.string().min(1),
 
   /// 作者后台密码（只有你一个人用，单密码即可）
   ADMIN_PASSWORD: z.string().min(6),
