@@ -950,6 +950,14 @@ async function renderAdminEdit(root, id) {
     writePostDraft(id, data);
     $('#draftStatus').textContent = `已自动保存 ${new Date().toLocaleTimeString('zh-CN')}`;
   };
+  const syncPaidFields = () => {
+    const paid = $('[name="isPaid"]').checked;
+    const price = $('[name="priceCents"]');
+    price.disabled = !paid;
+    price.closest('.form-group').style.opacity = paid ? '1' : '0.55';
+  };
+  $('[name="isPaid"]').addEventListener('change', syncPaidFields);
+  syncPaidFields();
   let draftTimer;
   $('#postForm').addEventListener('input', () => {
     clearTimeout(draftTimer);

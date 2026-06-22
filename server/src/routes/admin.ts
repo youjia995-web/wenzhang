@@ -224,7 +224,7 @@ export async function adminRoutes(app: FastifyInstance) {
     });
 
     // ---------- 文章 CRUD ----------
-    const postSchema = z.object({
+    const postBaseSchema = z.object({
       slug: z.string().max(120).optional(),
       title: z.string().min(1).max(200),
       summary: z.string().max(500),
@@ -234,9 +234,22 @@ export async function adminRoutes(app: FastifyInstance) {
       isPinned: z.boolean().default(false),
       sortOrder: z.number().int().min(-1_000_000).max(1_000_000).default(0),
       isPaid: z.boolean().default(true),
-      priceCents: z.number().int().min(1).max(1_000_000),
+      priceCents: z.number().int().min(0).max(1_000_000).optional(),
       status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
     });
+    const postSchema = postBaseSchema.transform((data) => ({
+      ...data,
+      priceCents: data.isPaid ? Math.max(data.priceCents ?? 990, 1) : 0,
+    }));
+    const postUpdateSchema = postBaseSchema.partial().transform((data) => ({
+      ...data,
+      priceCents:
+        data.isPaid === false
+          ? 0
+          : data.priceCents === undefined
+            ? undefined
+            : Math.max(data.priceCents, 1),
+    }));
 
     instance.post('/api/admin/posts', async (req, reply) => {
       const data = postSchema.parse(req.body);
@@ -262,7 +275,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     instance.put('/api/admin/posts/:id', async (req, reply) => {
       const { id } = req.params as { id: string };
-      const data = postSchema.partial().parse(req.body);
+      const data = postUpdateSchema.parse(req.body);
       const slug = data.slug !== undefined ? slugify(data.slug || data.title || '') : undefined;
       try {
         const post = await prisma.post.update({
