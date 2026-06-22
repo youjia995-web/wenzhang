@@ -839,9 +839,13 @@ async function renderAdminEdit(root, id) {
   if (id) {
     $('#delBtn').onclick = async () => {
       if (!confirm('确认删除？此操作不可恢复')) return;
-      await api(`/api/admin/posts/${id}`, { method: 'DELETE' });
-      toast('已删除');
-      setTimeout(() => location.hash = '#/admin/posts', 600);
+      try {
+        const r = await api(`/api/admin/posts/${id}`, { method: 'DELETE' });
+        toast(r.mode === 'archived' ? '已归档' : '已删除');
+        setTimeout(() => location.hash = '#/admin/posts', 600);
+      } catch (err) {
+        toast('删除失败：' + (err.data?.error || err.message), 'error');
+      }
     };
   }
 }

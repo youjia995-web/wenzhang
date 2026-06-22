@@ -244,6 +244,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     instance.get('/api/admin/posts', async () => {
       const posts = await prisma.post.findMany({
+        where: { status: { not: 'ARCHIVED' } },
         orderBy: { updatedAt: 'desc' },
         select: {
           id: true, slug: true, title: true, status: true, priceCents: true,
@@ -260,10 +261,29 @@ export async function adminRoutes(app: FastifyInstance) {
       return { post };
     });
 
-    instance.delete('/api/admin/posts/:id', async (req) => {
+    instance.delete('/api/admin/posts/:id', async (req, reply) => {
       const { id } = req.params as { id: string };
-      await prisma.post.delete({ where: { id } });
-      return { ok: true };
+      try {
+        const [orders, unlocks] = await Promise.all([
+          prisma.order.count({ where: { postId: id } }),
+          prisma.unlock.count({ where: { postId: id } }),
+        ]);
+        if (orders > 0 || unlocks > 0) {
+          await prisma.post.update({
+            where: { id },
+            data: { status: 'ARCHIVED', publishedAt: null },
+          });
+          return { ok: true, mode: 'archived' };
+        }
+        await prisma.post.delete({ where: { id } });
+        return { ok: true, mode: 'deleted' };
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+          return reply.code(404).send({ error: 'post_not_found' });
+        }
+        req.log.error({ err: e }, 'failed to delete post');
+        return reply.code(500).send({ error: 'post_delete_failed' });
+      }
     });
 
     // ---------- 统计 ----------
