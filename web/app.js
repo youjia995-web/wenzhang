@@ -988,7 +988,10 @@ async function renderAdminEdit(root, id) {
       toast('✓ 保存成功');
       setTimeout(() => location.hash = '#/admin/posts', 600);
     } catch (err) {
-      toast('保存失败：' + (err.data?.error || err.message), 'error');
+      const detail = Array.isArray(err.data?.details)
+        ? ': ' + err.data.details.map((d) => `${(d.path || []).join('.') || 'field'} ${d.message}`).join('; ')
+        : '';
+      toast('保存失败：' + (err.data?.error || err.message) + detail, 'error');
     }
   };
   if (id) {

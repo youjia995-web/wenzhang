@@ -230,11 +230,24 @@ export async function adminRoutes(app: FastifyInstance) {
       summary: z.string().max(500),
       preview: z.string().min(1),
       content: z.string().min(1),
-      coverUrl: z.string().url().optional().nullable(),
+      coverUrl: z.preprocess((value) => {
+        if (typeof value !== 'string') return null;
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        try {
+          new URL(trimmed);
+          return trimmed;
+        } catch {
+          return null;
+        }
+      }, z.string().url().nullable()),
       isPinned: z.boolean().default(false),
       sortOrder: z.number().int().min(-1_000_000).max(1_000_000).default(0),
       isPaid: z.boolean().default(true),
-      priceCents: z.number().int().min(0).max(1_000_000).optional(),
+      priceCents: z.preprocess((value) => {
+        if (value === null || value === undefined || value === '') return undefined;
+        return value;
+      }, z.number().int().min(0).max(1_000_000).optional()),
       status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
     });
     const postSchema = postBaseSchema.transform((data) => ({
@@ -252,7 +265,11 @@ export async function adminRoutes(app: FastifyInstance) {
     }));
 
     instance.post('/api/admin/posts', async (req, reply) => {
-      const data = postSchema.parse(req.body);
+      const parsed = postSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'post_validation_failed', details: parsed.error.issues });
+      }
+      const data = parsed.data;
       const slug = slugify(data.slug || data.title);
       try {
         const post = await prisma.post.create({
@@ -275,7 +292,11 @@ export async function adminRoutes(app: FastifyInstance) {
 
     instance.put('/api/admin/posts/:id', async (req, reply) => {
       const { id } = req.params as { id: string };
-      const data = postUpdateSchema.parse(req.body);
+      const parsed = postUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'post_validation_failed', details: parsed.error.issues });
+      }
+      const data = parsed.data;
       const slug = data.slug !== undefined ? slugify(data.slug || data.title || '') : undefined;
       try {
         const post = await prisma.post.update({
