@@ -14,11 +14,11 @@
 4. **Add Service** → **GitHub** → 选 `youjia995-web/wenzhang`：
    - **Root Directory**: `server` ⚠️ 必须填
    - Build / Start Command 都留空（用 `server/zbpack.json`）
-5. **关键步骤 — 挂载持久卷**：
-   - 服务创建后 → **Settings** → **Volumes** → **Add Volume**
+5. **关键步骤 — 挂载持久卷**（必须！否则 SQLite 数据容器重启就丢）：
+   - 主服务 → **Settings** → **Volumes** → **Add Volume**
    - **Mount Path**: `/data`
    - **Size**: `1 GiB`（SQLite 单文件足够）
-   - 也可跳过 — `zbpack.json` 已声明，但显式添加更稳
+   - ⚠️ 不要在 zbpack.json 里声明 volume，必须在控制台手动添加
 6. **添加环境变量**（主服务 → **Variables** 标签）：
 
 | 变量 | 值 | 说明 |

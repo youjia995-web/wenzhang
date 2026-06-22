@@ -6,22 +6,22 @@
 command = "npm install && npm run build"
 
 [start]
-# 先跑 prisma migrate deploy（幂等的，生产用 deploy 不是 dev），再启动 Node 服务
-# DATABASE_URL 默认为 file:/data/prod.db（见 [volume] 段），SQLite 文件落在持久卷里
-command = "npx prisma migrate deploy && npm start"
+# 用 node 直接跑，不用 npm start（npm wrapper 会 buffer 子进程 stderr，导致 Zeabur 抓不到启动错误）
+# mkdir -p /data 兜底：即使 Volume 没挂载，/data 目录也会创建（容器重启会丢数据，但服务能跑起来）
+command = "mkdir -p /data && node node_modules/.bin/prisma migrate deploy && node dist/index.js"
 
 # 健康检查 — Zeabur 用这个端点判断服务是否存活
 [healthcheck]
 path = "/health"
 port = 3000
+interval = 10
+timeout = 3
 
 # 暴露 HTTP 端口（Zeabur 自动生成 https://xxx.zeabur.app 域名）
 [[ports]]
 port = 3000
 type = "HTTP"
 
-# 持久卷 — SQLite 文件存这里，容器重启/重新部署都不会丢数据
-# 也可在 Zeabur 控制台手动 Add Volume（Mount Path=/data）
-[[volume]]
-name = "data"
-mountPath = "/data"
+# ⚠️ Volume 必须去 Zeabur 控制台手动添加：
+#   服务 → Settings → Volumes → Add Volume → Mount Path: /data → Size: 1 GiB
+# zbpack.json 里的 [[volume]] 字段在某些 Zeabur 版本不解析，靠控制台 UI 更可靠
