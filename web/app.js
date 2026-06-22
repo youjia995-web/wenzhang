@@ -90,6 +90,26 @@ function renderMarkdown(md) {
     .replace(/$/, '</p>');
 }
 
+function postDraftKey(id) {
+  return `post_draft_${id || 'new'}`;
+}
+
+function readPostDraft(id) {
+  try {
+    return JSON.parse(localStorage.getItem(postDraftKey(id)) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function writePostDraft(id, data) {
+  localStorage.setItem(postDraftKey(id), JSON.stringify({ ...data, savedAt: new Date().toISOString() }));
+}
+
+function clearPostDraft(id) {
+  localStorage.removeItem(postDraftKey(id));
+}
+
 function timeLeft(expiredAt) {
   const sec = Math.max(0, Math.floor((new Date(expiredAt) - Date.now()) / 1000));
   const m = Math.floor(sec / 60);
@@ -119,31 +139,32 @@ function toast(msg, kind = 'info') {
 // ============================================================
 function router() {
   const hash = location.hash || '#/';
+  const route = hash.split('?')[0];
   const root = $('#app');
   root.innerHTML = '';
 
-  if (hash === '#/' || hash === '') return renderList(root);
-  if (hash.startsWith('#/post/')) {
-    const slug = decodeURIComponent(hash.slice('#/post/'.length));
+  if (route === '#/' || route === '') return renderList(root);
+  if (route.startsWith('#/post/')) {
+    const slug = decodeURIComponent(route.slice('#/post/'.length));
     return renderPost(root, slug);
   }
-  if (hash === '#/admin') return renderAdminLogin(root);
-  if (hash === '#/admin/qrs') {
+  if (route === '#/admin') return renderAdminLogin(root);
+  if (route === '#/admin/qrs') {
     if (!state.adminToken) return (location.hash = '#/admin');
     return renderAdminQRs(root);
   }
-  if (hash === '#/admin/orders') {
+  if (route === '#/admin/orders') {
     if (!state.adminToken) return (location.hash = '#/admin');
     return renderAdminOrders(root);
   }
-  if (hash === '#/admin/posts') {
+  if (route === '#/admin/posts') {
     if (!state.adminToken) return (location.hash = '#/admin');
     return renderAdminPosts(root);
   }
-  if (hash === '#/admin/posts/new' || hash.startsWith('#/admin/posts/edit/')) {
+  if (route === '#/admin/posts/new' || route.startsWith('#/admin/posts/edit/')) {
     if (!state.adminToken) return (location.hash = '#/admin');
-    const id = hash.startsWith('#/admin/posts/edit/')
-      ? hash.slice('#/admin/posts/edit/'.length)
+    const id = route.startsWith('#/admin/posts/edit/')
+      ? route.slice('#/admin/posts/edit/'.length)
       : null;
     return renderAdminEdit(root, id);
   }
@@ -596,6 +617,9 @@ async function renderAdminOrders(root) {
       <a href="#" data-filter="CONFIRMED" style="color: var(--ok);">已确认</a>
       <a href="#" data-filter="">全部</a>
     </div>
+    <div class="form-group" style="margin-top: var(--sp-4);">
+      <input class="form-control" id="orderSearch" placeholder="搜索订单号、文章标题或 slug" />
+    </div>
     <div id="orderList" style="margin-top: var(--sp-4);"><div class="skeleton" style="height: 200px;"></div></div>
   `;
   $('#logout').onclick = (e) => {
@@ -609,9 +633,15 @@ async function renderAdminOrders(root) {
       e.preventDefault();
       $$('[data-filter]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      loadOrders(btn.dataset.filter);
+      loadOrders(btn.dataset.filter, $('#orderSearch')?.value || '');
     };
   });
+  let searchTimer;
+  $('#orderSearch').oninput = () => {
+    clearTimeout(searchTimer);
+    const active = $('[data-filter].active')?.dataset.filter || '';
+    searchTimer = setTimeout(() => loadOrders(active, $('#orderSearch').value), 250);
+  };
   await loadStats();
   await loadOrders('AWAITING_CONFIRM');
 }
@@ -644,11 +674,14 @@ async function loadStats() {
   }
 }
 
-async function loadOrders(filter) {
+async function loadOrders(filter, search = '') {
   const list = $('#orderList');
   list.innerHTML = '<div class="skeleton" style="height: 100px;"></div>';
   try {
-    const q = filter ? `?status=${filter}` : '';
+    const params = new URLSearchParams();
+    if (filter) params.set('status', filter);
+    if (search.trim()) params.set('search', search.trim());
+    const q = params.toString() ? `?${params.toString()}` : '';
     const { orders } = await api(`/api/admin/orders${q}`);
     if (!orders.length) {
       list.innerHTML = '<p style="text-align:center;padding:var(--sp-8);color:var(--fg-muted);">暂无订单</p>';
@@ -663,14 +696,17 @@ async function loadOrders(filter) {
             <span>${fmtPrice(o.amountCents)}</span>
             <span>${new Date(o.createdAt).toLocaleString('zh-CN')}</span>
             ${orderBadge(o.status)}
+            ${o.unlock ? `<span>访问 ${o.unlock.accessCount || 0} 次</span>` : ''}
           </div>
         </div>
-        ${o.status === 'AWAITING_CONFIRM' ? `
-          <div class="order-actions">
+        <div class="order-actions">
+          <button class="btn btn-secondary" onclick="window.__showOrder('${o.id}')">详情</button>
+          ${o.status === 'AWAITING_CONFIRM' ? `
             <button class="btn btn-primary" onclick="window.__confirmOrder('${o.id}')">${Icon.check} 确认</button>
             <button class="btn btn-secondary" onclick="window.__rejectOrder('${o.id}')" title="拒绝">${Icon.x}</button>
-          </div>
-        ` : ''}
+          ` : ''}
+        </div>
+        <div id="orderDetail-${o.id}" style="display:none; width:100%; margin-top: var(--sp-3);"></div>
       </div>
     `).join('');
   } catch (e) {
@@ -695,6 +731,39 @@ window.__confirmOrder = async (id) => {
   await loadStats();
   await loadOrders('AWAITING_CONFIRM');
 };
+
+window.__showOrder = async (id) => {
+  const el = $(`#orderDetail-${id}`);
+  if (!el) return;
+  if (el.style.display !== 'none') {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = 'block';
+  el.innerHTML = '<div class="skeleton" style="height: 80px;"></div>';
+  try {
+    const { order } = await api(`/api/admin/orders/${id}`);
+    el.innerHTML = `
+      <div class="pay-card" style="margin:0; padding: var(--sp-4);">
+        <div class="order-meta">
+          <span>文章：${escape(order.post.title)}</span>
+          <span>Slug：${escape(order.post.slug)}</span>
+          <span>金额：${fmtPrice(order.amountCents)}</span>
+          <span>状态：${order.status}</span>
+        </div>
+        <div class="order-meta" style="margin-top: var(--sp-2);">
+          <span>创建：${new Date(order.createdAt).toLocaleString('zh-CN')}</span>
+          ${order.awaitingConfirmAt ? `<span>通知：${new Date(order.awaitingConfirmAt).toLocaleString('zh-CN')}</span>` : ''}
+          ${order.confirmedAt ? `<span>确认：${new Date(order.confirmedAt).toLocaleString('zh-CN')}</span>` : ''}
+          ${order.unlock ? `<span>解锁：${new Date(order.unlock.createdAt).toLocaleString('zh-CN')}</span>` : ''}
+        </div>
+        ${order.rejectReason ? `<p style="margin-top: var(--sp-2); color: var(--warn);">拒绝原因：${escape(order.rejectReason)}</p>` : ''}
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<p style="color: var(--accent);">详情加载失败：${e.message}</p>`;
+  }
+};
 window.__rejectOrder = async (id) => {
   const reason = prompt('拒绝原因（可空）：');
   if (reason === null) return;
@@ -711,6 +780,7 @@ window.__rejectOrder = async (id) => {
 // 文章管理
 // ============================================================
 async function renderAdminPosts(root) {
+  const view = new URLSearchParams((location.hash.split('?')[1] || '')).get('view') || 'active';
   root.innerHTML = `
     <div class="page-header">
       <h1>文章管理</h1>
@@ -724,6 +794,10 @@ async function renderAdminPosts(root) {
     <p style="margin: var(--sp-4) 0;">
       <a href="#/admin/posts/new" class="btn btn-primary">${Icon.plus} 新建文章</a>
     </p>
+    <div class="nav-pills" style="margin-bottom: var(--sp-4);">
+      <a href="#/admin/posts" class="${view === 'active' ? 'active' : ''}">当前文章</a>
+      <a href="#/admin/posts?view=archived" class="${view === 'archived' ? 'active' : ''}">归档文章</a>
+    </div>
     <div id="postList"><div class="skeleton" style="height: 200px;"></div></div>
   `;
   $('#logout').onclick = (e) => {
@@ -733,7 +807,7 @@ async function renderAdminPosts(root) {
     location.hash = '#/';
   };
   try {
-    const { posts } = await api('/api/admin/posts');
+    const { posts } = await api(`/api/admin/posts?status=${view === 'archived' ? 'ARCHIVED' : 'ACTIVE'}`);
     if (!posts.length) {
       $('#postList').innerHTML = '<p style="text-align:center;padding:var(--sp-8);color:var(--fg-muted);">还没有文章</p>';
       return;
@@ -745,10 +819,13 @@ async function renderAdminPosts(root) {
             <h2>${escape(p.title)}</h2>
             <div class="meta">
               <span class="badge ${p.status === 'PUBLISHED' ? 'badge-ok' : p.status === 'DRAFT' ? 'badge-muted' : 'badge-warn'}">${p.status}</span>
+              ${p.isPinned ? '<span class="badge badge-ok">置顶</span>' : ''}
               <span class="price-tag">${fmtPrice(p.priceCents)}</span>
+              <span>排序 ${p.sortOrder || 0}</span>
               <span>${new Date(p.updatedAt).toLocaleDateString('zh-CN')}</span>
             </div>
           </a>
+          ${view === 'archived' ? `<p style="margin-top: var(--sp-2);"><button class="btn btn-secondary" onclick="window.__restorePost('${p.id}')">恢复为草稿</button></p>` : ''}
         </li>
       `).join('')
     }</ul>`;
@@ -757,8 +834,17 @@ async function renderAdminPosts(root) {
   }
 }
 
+window.__restorePost = async (id) => {
+  await api(`/api/admin/posts/${id}/restore`, { method: 'POST' });
+  toast('已恢复为草稿');
+  renderAdminPosts($('#app'));
+};
+
 async function renderAdminEdit(root, id) {
-  let post = { slug: '', title: '', summary: '', preview: '', content: '', priceCents: 990, status: 'DRAFT' };
+  let post = {
+    slug: '', title: '', summary: '', preview: '', content: '', coverUrl: '',
+    priceCents: 990, status: 'DRAFT', isPinned: false, sortOrder: 0,
+  };
   if (id) {
     try {
       const r = await api(`/api/admin/posts/${id}`);
@@ -767,6 +853,10 @@ async function renderAdminEdit(root, id) {
       root.innerHTML = `<p style="color: var(--accent);">加载失败：${e.message}</p>`;
       return;
     }
+  }
+  const savedDraft = readPostDraft(id);
+  if (savedDraft && confirm(`发现本地自动保存草稿（${new Date(savedDraft.savedAt).toLocaleString('zh-CN')}），是否恢复？`)) {
+    post = { ...post, ...savedDraft };
   }
   root.innerHTML = `
     <div class="page-header">
@@ -787,6 +877,10 @@ async function renderAdminEdit(root, id) {
         <textarea class="form-control" name="summary" rows="2">${escape(post.summary)}</textarea>
       </div>
       <div class="form-group">
+        <label>封面图 URL</label>
+        <input class="form-control" name="coverUrl" value="${escape(post.coverUrl || '')}" placeholder="https://..." />
+      </div>
+      <div class="form-group">
         <label>公开预览（建议 20-30% 内容）</label>
         <textarea class="form-control" name="preview" rows="6" style="font-family: var(--font-mono); font-size: 14px;">${escape(post.preview)}</textarea>
       </div>
@@ -798,6 +892,15 @@ async function renderAdminEdit(root, id) {
         <label>价格（分）= ${fmtPrice(post.priceCents)}</label>
         <input class="form-control" name="priceCents" type="number" value="${post.priceCents}" min="1" style="max-width: 200px;" />
       </div>
+      <div class="form-group" style="display:flex; gap: var(--sp-4); align-items:center; flex-wrap:wrap;">
+        <label style="display:flex; gap: var(--sp-2); align-items:center; margin:0;">
+          <input name="isPinned" type="checkbox" ${post.isPinned ? 'checked' : ''} /> 置顶
+        </label>
+        <label style="display:flex; gap: var(--sp-2); align-items:center; margin:0;">
+          排序
+          <input class="form-control" name="sortOrder" type="number" value="${post.sortOrder || 0}" style="width: 120px;" />
+        </label>
+      </div>
       <div class="form-group">
         <label>状态</label>
         <select class="form-control" name="status" style="max-width: 200px;">
@@ -808,28 +911,60 @@ async function renderAdminEdit(root, id) {
       </div>
       <div style="display: flex; gap: var(--sp-3); margin-top: var(--sp-8);">
         <button type="submit" class="btn btn-primary btn-lg">保存</button>
+        <button type="button" id="previewBtn" class="btn btn-secondary btn-lg">预览</button>
         ${id ? `<button type="button" id="delBtn" class="btn btn-secondary">删除</button>` : ''}
       </div>
+      <p class="status-area" id="draftStatus" style="margin-top: var(--sp-3);"></p>
     </form>
+    <div id="postPreview" class="article-body" style="display:none; margin-top: var(--sp-8); border-top: 1px solid var(--border); padding-top: var(--sp-6);"></div>
   `;
+  const collectPostForm = () => {
+    const fd = new FormData($('#postForm'));
+    return {
+      slug: String(fd.get('slug') || '').trim(),
+      title: String(fd.get('title') || ''),
+      summary: String(fd.get('summary') || ''),
+      preview: String(fd.get('preview') || ''),
+      content: String(fd.get('content') || ''),
+      coverUrl: String(fd.get('coverUrl') || '').trim() || null,
+      priceCents: parseInt(String(fd.get('priceCents') || '0'), 10),
+      isPinned: fd.get('isPinned') === 'on',
+      sortOrder: parseInt(String(fd.get('sortOrder') || '0'), 10),
+      status: String(fd.get('status') || 'DRAFT'),
+    };
+  };
+  const saveLocalDraft = () => {
+    const data = collectPostForm();
+    writePostDraft(id, data);
+    $('#draftStatus').textContent = `已自动保存 ${new Date().toLocaleTimeString('zh-CN')}`;
+  };
+  let draftTimer;
+  $('#postForm').addEventListener('input', () => {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(saveLocalDraft, 500);
+  });
+  $('#previewBtn').onclick = () => {
+    const data = collectPostForm();
+    const preview = $('#postPreview');
+    preview.style.display = 'block';
+    preview.innerHTML = `
+      ${data.coverUrl ? `<img src="${escape(data.coverUrl)}" alt="" style="margin-bottom: var(--sp-6); border-radius: var(--r-md);" />` : ''}
+      <h1>${escape(data.title || '未命名文章')}</h1>
+      ${data.summary ? `<p class="article-summary">${escape(data.summary)}</p>` : ''}
+      ${renderMarkdown(data.content || data.preview || '')}
+    `;
+    saveLocalDraft();
+  };
   $('#postForm').onsubmit = async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
-    const data = {
-      slug: String(fd.get('slug') || '').trim(),
-      title: fd.get('title'),
-      summary: fd.get('summary'),
-      preview: fd.get('preview'),
-      content: fd.get('content'),
-      priceCents: parseInt(fd.get('priceCents'), 10),
-      status: fd.get('status'),
-    };
+    const data = collectPostForm();
     try {
       if (id) {
         await api(`/api/admin/posts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
       } else {
         await api('/api/admin/posts', { method: 'POST', body: JSON.stringify(data) });
       }
+      clearPostDraft(id);
       toast('✓ 保存成功');
       setTimeout(() => location.hash = '#/admin/posts', 600);
     } catch (err) {

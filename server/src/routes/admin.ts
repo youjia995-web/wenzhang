@@ -135,15 +135,46 @@ export async function adminRoutes(app: FastifyInstance) {
 
     // ---------- 订单管理 ----------
     instance.get('/api/admin/orders', async (req) => {
-      const q = z.object({ status: z.string().optional() }).parse(req.query);
-      const where = q.status ? { status: q.status as 'PENDING' | 'AWAITING_CONFIRM' | 'CONFIRMED' | 'REJECTED' | 'EXPIRED' } : {};
+      const q = z.object({
+        status: z.string().optional(),
+        search: z.string().max(100).optional(),
+      }).parse(req.query);
+      const and: Prisma.OrderWhereInput[] = [];
+      if (q.status) and.push({ status: q.status });
+      if (q.search?.trim()) {
+        const search = q.search.trim();
+        and.push({
+          OR: [
+            { orderNo: { contains: search } },
+            { post: { title: { contains: search } } },
+            { post: { slug: { contains: search } } },
+          ],
+        });
+      }
+      const where: Prisma.OrderWhereInput = and.length ? { AND: and } : {};
       const orders = await prisma.order.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         take: 100,
-        include: { post: { select: { title: true, slug: true } } },
+        include: {
+          post: { select: { title: true, slug: true } },
+          unlock: { select: { createdAt: true, accessCount: true, lastAccessAt: true } },
+        },
       });
       return { orders };
+    });
+
+    instance.get('/api/admin/orders/:id', async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const order = await prisma.order.findUnique({
+        where: { id },
+        include: {
+          post: { select: { id: true, title: true, slug: true, status: true } },
+          unlock: { select: { createdAt: true, accessCount: true, lastAccessAt: true } },
+        },
+      });
+      if (!order) return reply.code(404).send({ error: 'order_not_found' });
+      return { order };
     });
 
     // 确认订单 → 生成 unlock
@@ -200,6 +231,8 @@ export async function adminRoutes(app: FastifyInstance) {
       preview: z.string().min(1),
       content: z.string().min(1),
       coverUrl: z.string().url().optional().nullable(),
+      isPinned: z.boolean().default(false),
+      sortOrder: z.number().int().min(-1_000_000).max(1_000_000).default(0),
       priceCents: z.number().int().min(1).max(1_000_000),
       status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
     });
@@ -212,6 +245,7 @@ export async function adminRoutes(app: FastifyInstance) {
           data: {
             ...data,
             slug,
+            draftSavedAt: data.status === 'DRAFT' ? new Date() : null,
             publishedAt: data.status === 'PUBLISHED' ? new Date() : null,
           },
         });
@@ -235,6 +269,7 @@ export async function adminRoutes(app: FastifyInstance) {
           data: {
             ...data,
             slug,
+            draftSavedAt: data.status === 'DRAFT' ? new Date() : data.status === 'PUBLISHED' ? null : undefined,
             publishedAt:
               data.status === 'PUBLISHED'
                 ? new Date()
@@ -254,12 +289,22 @@ export async function adminRoutes(app: FastifyInstance) {
       }
     });
 
-    instance.get('/api/admin/posts', async () => {
+    instance.get('/api/admin/posts', async (req) => {
+      const q = z.object({
+        status: z.enum(['ACTIVE', 'ARCHIVED', 'ALL']).default('ACTIVE'),
+      }).parse(req.query);
+      const where =
+        q.status === 'ARCHIVED'
+          ? { status: 'ARCHIVED' }
+          : q.status === 'ALL'
+            ? {}
+            : { status: { not: 'ARCHIVED' } };
       const posts = await prisma.post.findMany({
-        where: { status: { not: 'ARCHIVED' } },
-        orderBy: { updatedAt: 'desc' },
+        where,
+        orderBy: [{ isPinned: 'desc' }, { sortOrder: 'desc' }, { updatedAt: 'desc' }],
         select: {
           id: true, slug: true, title: true, status: true, priceCents: true,
+          coverUrl: true, isPinned: true, sortOrder: true, draftSavedAt: true,
           publishedAt: true, createdAt: true, updatedAt: true,
         },
       });
@@ -271,6 +316,23 @@ export async function adminRoutes(app: FastifyInstance) {
       const post = await prisma.post.findUnique({ where: { id } });
       if (!post) return reply.code(404).send({ error: 'not_found' });
       return { post };
+    });
+
+    instance.post('/api/admin/posts/:id/restore', async (req, reply) => {
+      const { id } = req.params as { id: string };
+      try {
+        const post = await prisma.post.update({
+          where: { id },
+          data: { status: 'DRAFT', publishedAt: null, draftSavedAt: new Date() },
+        });
+        return { post };
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+          return reply.code(404).send({ error: 'post_not_found' });
+        }
+        req.log.error({ err: e }, 'failed to restore post');
+        return reply.code(500).send({ error: 'post_restore_failed' });
+      }
     });
 
     instance.delete('/api/admin/posts/:id', async (req, reply) => {

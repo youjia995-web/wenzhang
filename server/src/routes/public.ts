@@ -29,7 +29,7 @@ export async function publicRoutes(app: FastifyInstance) {
   app.get('/api/posts', async () => {
     const posts = await prisma.post.findMany({
       where: { status: 'PUBLISHED' },
-      orderBy: { publishedAt: 'desc' },
+      orderBy: [{ isPinned: 'desc' }, { sortOrder: 'desc' }, { publishedAt: 'desc' }],
       select: {
         id: true,
         slug: true,

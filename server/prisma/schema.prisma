@@ -34,6 +34,9 @@ model Post {
   /// 完整内容（付费后返回）
   content     String
   coverUrl    String?
+  isPinned    Boolean    @default(false)
+  sortOrder   Int        @default(0)
+  draftSavedAt DateTime?
   /// 金额（分），避免浮点
   priceCents  Int        @default(990)
   /// 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
@@ -45,7 +48,7 @@ model Post {
   orders      Order[]
   unlocks     Unlock[]
 
-  @@index([status, publishedAt])
+  @@index([status, isPinned, sortOrder, publishedAt])
 }
 
 model Order {
