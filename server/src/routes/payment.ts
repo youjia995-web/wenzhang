@@ -27,10 +27,13 @@ export async function paymentRoutes(app: FastifyInstance) {
 
     const post = await prisma.post.findUnique({
       where: { slug: postSlug },
-      select: { id: true, title: true, priceCents: true, status: true },
+      select: { id: true, title: true, priceCents: true, status: true, isPaid: true },
     });
     if (!post || post.status !== 'PUBLISHED') {
       return reply.code(404).send({ error: 'post_not_found' });
+    }
+    if (!post.isPaid) {
+      return reply.code(409).send({ error: 'post_is_free' });
     }
 
     // 选一张可用的收款码（取最新一张）

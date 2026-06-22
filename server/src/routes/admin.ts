@@ -233,6 +233,7 @@ export async function adminRoutes(app: FastifyInstance) {
       coverUrl: z.string().url().optional().nullable(),
       isPinned: z.boolean().default(false),
       sortOrder: z.number().int().min(-1_000_000).max(1_000_000).default(0),
+      isPaid: z.boolean().default(true),
       priceCents: z.number().int().min(1).max(1_000_000),
       status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
     });
@@ -304,6 +305,7 @@ export async function adminRoutes(app: FastifyInstance) {
         orderBy: [{ isPinned: 'desc' }, { sortOrder: 'desc' }, { updatedAt: 'desc' }],
         select: {
           id: true, slug: true, title: true, status: true, priceCents: true,
+          isPaid: true,
           coverUrl: true, isPinned: true, sortOrder: true, draftSavedAt: true,
           publishedAt: true, createdAt: true, updatedAt: true,
         },

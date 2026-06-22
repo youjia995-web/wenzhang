@@ -36,6 +36,7 @@ export async function publicRoutes(app: FastifyInstance) {
         title: true,
         summary: true,
         coverUrl: true,
+        isPaid: true,
         priceCents: true,
         publishedAt: true,
       },
@@ -55,6 +56,7 @@ export async function publicRoutes(app: FastifyInstance) {
         summary: true,
         preview: true,
         coverUrl: true,
+        isPaid: true,
         priceCents: true,
         status: true,
         publishedAt: true,
@@ -62,6 +64,10 @@ export async function publicRoutes(app: FastifyInstance) {
     });
     if (!post || post.status !== 'PUBLISHED') {
       return reply.code(404).send({ error: 'not_found' });
+    }
+
+    if (!post.isPaid) {
+      return { post: { ...post, unlocked: true } };
     }
 
     const unlockToken = req.headers[UNLOCK_TOKEN_HEADER] as string | undefined;
@@ -85,6 +91,20 @@ export async function publicRoutes(app: FastifyInstance) {
   // 取完整内容（必须带 unlock token）
   app.get('/api/posts/:slug/content', async (req, reply) => {
     const { slug } = req.params as { slug: string };
+    const post = await prisma.post.findUnique({
+      where: { slug },
+      select: { id: true, content: true, status: true, isPaid: true },
+    });
+    if (!post || (post.status !== 'PUBLISHED' && post.status !== 'ARCHIVED')) {
+      return reply.code(404).send({ error: 'not_found' });
+    }
+    if (!post.isPaid) {
+      if (post.status !== 'PUBLISHED') {
+        return reply.code(404).send({ error: 'not_found' });
+      }
+      return { content: post.content };
+    }
+
     const unlockToken = req.headers[UNLOCK_TOKEN_HEADER] as string | undefined;
     const readerToken = req.cookies[READER_TOKEN_COOKIE];
     if (!unlockToken) {
@@ -92,14 +112,6 @@ export async function publicRoutes(app: FastifyInstance) {
     }
     if (!readerToken) {
       return reply.code(400).send({ error: 'reader_token_missing' });
-    }
-
-    const post = await prisma.post.findUnique({
-      where: { slug },
-      select: { id: true, content: true, status: true },
-    });
-    if (!post || (post.status !== 'PUBLISHED' && post.status !== 'ARCHIVED')) {
-      return reply.code(404).send({ error: 'not_found' });
     }
 
     const unlock = await prisma.unlock.findUnique({

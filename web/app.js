@@ -197,7 +197,7 @@ async function renderList(root) {
           <a href="#/post/${encodeURIComponent(p.slug)}" class="post-card" style="animation-delay: ${i * 50}ms">
             <h2>${escape(p.title)}</h2>
             <div class="meta">
-              <span class="price-tag">${fmtPrice(p.priceCents)}</span>
+              <span class="price-tag">${p.isPaid ? fmtPrice(p.priceCents) : '免费'}</span>
               <span>${new Date(p.publishedAt).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}</span>
               <span>·</span>
               <span>约 ${Math.max(3, Math.round((p.summary || '').length / 80))} 分钟</span>
@@ -229,7 +229,7 @@ async function renderPost(root, slug) {
           <div class="article-meta">
             <span>${new Date(post.publishedAt).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
             <span>·</span>
-            <span class="price-tag">${fmtPrice(post.priceCents)}</span>
+            <span class="price-tag">${post.isPaid ? fmtPrice(post.priceCents) : '免费'}</span>
           </div>
           ${post.summary ? `<p class="article-summary">${escape(post.summary)}</p>` : ''}
         </header>
@@ -241,7 +241,15 @@ async function renderPost(root, slug) {
     `;
     root.innerHTML = body;
 
-    if (post.unlocked) {
+    if (!post.isPaid) {
+      await showUnlocked(slug, post);
+      $('#payArea').innerHTML = `
+        <div class="unlock-banner">
+          ${Icon.checkCircle}
+          <span>免费阅读 · 完整内容如下</span>
+        </div>
+      `;
+    } else if (post.unlocked) {
       await showUnlocked(slug, post);
     } else {
       renderPayCard(slug, post.priceCents);
@@ -820,7 +828,7 @@ async function renderAdminPosts(root) {
             <div class="meta">
               <span class="badge ${p.status === 'PUBLISHED' ? 'badge-ok' : p.status === 'DRAFT' ? 'badge-muted' : 'badge-warn'}">${p.status}</span>
               ${p.isPinned ? '<span class="badge badge-ok">置顶</span>' : ''}
-              <span class="price-tag">${fmtPrice(p.priceCents)}</span>
+              <span class="price-tag">${p.isPaid ? fmtPrice(p.priceCents) : '免费'}</span>
               <span>排序 ${p.sortOrder || 0}</span>
               <span>${new Date(p.updatedAt).toLocaleDateString('zh-CN')}</span>
             </div>
@@ -843,7 +851,7 @@ window.__restorePost = async (id) => {
 async function renderAdminEdit(root, id) {
   let post = {
     slug: '', title: '', summary: '', preview: '', content: '', coverUrl: '',
-    priceCents: 990, status: 'DRAFT', isPinned: false, sortOrder: 0,
+    priceCents: 990, status: 'DRAFT', isPinned: false, sortOrder: 0, isPaid: true,
   };
   if (id) {
     try {
@@ -894,6 +902,9 @@ async function renderAdminEdit(root, id) {
       </div>
       <div class="form-group" style="display:flex; gap: var(--sp-4); align-items:center; flex-wrap:wrap;">
         <label style="display:flex; gap: var(--sp-2); align-items:center; margin:0;">
+          <input name="isPaid" type="checkbox" ${post.isPaid !== false ? 'checked' : ''} /> 付费阅读
+        </label>
+        <label style="display:flex; gap: var(--sp-2); align-items:center; margin:0;">
           <input name="isPinned" type="checkbox" ${post.isPinned ? 'checked' : ''} /> 置顶
         </label>
         <label style="display:flex; gap: var(--sp-2); align-items:center; margin:0;">
@@ -928,6 +939,7 @@ async function renderAdminEdit(root, id) {
       content: String(fd.get('content') || ''),
       coverUrl: String(fd.get('coverUrl') || '').trim() || null,
       priceCents: parseInt(String(fd.get('priceCents') || '0'), 10),
+      isPaid: fd.get('isPaid') === 'on',
       isPinned: fd.get('isPinned') === 'on',
       sortOrder: parseInt(String(fd.get('sortOrder') || '0'), 10),
       status: String(fd.get('status') || 'DRAFT'),

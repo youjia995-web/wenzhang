@@ -37,6 +37,7 @@ model Post {
   isPinned    Boolean    @default(false)
   sortOrder   Int        @default(0)
   draftSavedAt DateTime?
+  isPaid      Boolean    @default(true)
   /// 金额（分），避免浮点
   priceCents  Int        @default(990)
   /// 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
