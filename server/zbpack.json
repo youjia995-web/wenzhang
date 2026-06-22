@@ -1,12 +1,24 @@
 # Zeabur 部署配置 (TOML 格式)
 # https://zeabur.com/docs/marketplace/format
+# 配合 Root Directory = server 使用，可一键部署
 
 [build]
 command = "npm install && npm run build"
 
+[start]
+# 先跑 prisma migrate deploy（幂等的，生产用 deploy 不是 dev），再启动 Node 服务
+# 注意：npm install 已经跑了 postinstall -> prisma generate，所以这里不需要再 generate
+command = "npx prisma migrate deploy && npm start"
+
+# 健康检查 — Zeabur 用这个端点判断服务是否存活
+[healthcheck]
+path = "/health"
+port = 3000
+
+# 暴露 HTTP 端口（Zeabur 自动生成 https://xxx.zeabur.app 域名）
 [[ports]]
 port = 3000
 type = "HTTP"
 
-# 健康检查路径（Zeabur 用来判断服务是否启动）
-# Zeabur 会通过 /health 端点判断服务存活
+# 只监听 server/ 目录变更，触发热重部署（可选）
+# watch = ["src/**", "prisma/**", "package.json"]

@@ -38,10 +38,14 @@ export async function buildApp() {
   await app.register(paymentRoutes, { prefix: '' });
   await app.register(adminRoutes, { prefix: '' });
 
-  // 静态前端
+  // 静态前端 — dev 模式从 ../../web/ 读；prod 由 postbuild 复制到 dist/web/
+  const webRoot = env.NODE_ENV === 'production'
+    ? join(__dirname, 'web')
+    : join(__dirname, '..', '..', 'web');
   await app.register(fastifyStatic, {
-    root: join(__dirname, '../../web'),
+    root: webRoot,
     prefix: '/',
+    decorateReply: false,
   });
   // SPA fallback
   app.setNotFoundHandler((req, reply) => {
