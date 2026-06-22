@@ -3,19 +3,16 @@
 ## 本地开发
 
 ```bash
-# 1. 启动 PostgreSQL
-docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres --name pg-paid postgres:16
-
-# 2. 配环境变量
+# 1. 配环境变量
 cp .env.example .env
 # 编辑 .env：填 ADMIN_PASSWORD（强密码）和 2 个随机密钥
 
-# 3. 安装 + 初始化
+# 2. 安装 + 初始化 SQLite
 npm install
 npm run db:migrate -- --name init
 npm run db:seed
 
-# 4. 启动
+# 3. 启动
 npm run dev
 # → http://localhost:3000
 ```
@@ -25,10 +22,10 @@ npm run dev
 ## Zeabur 部署
 
 1. 推到 GitHub
-2. Zeabur → New Service → 选仓库 → **Root Directory = `server`**
-3. 添加 PostgreSQL Marketplace 服务（自动注入 DATABASE_URL）
-4. 填环境变量（同 `.env.example`）
-5. 启动命令 = `npx prisma migrate deploy && npm start`
+2. Zeabur → New Service → 选仓库 → **Root Directory 留空，使用仓库根目录**
+3. Build / Start Command 留空，让 Zeabur 使用根目录 `zbpack.json`
+4. 添加持久卷：Mount Path = `/data`，Size = `1 GiB`
+5. 填环境变量（同 `.env.example`），其中 `DATABASE_URL=file:/data/prod.db`
 6. 绑定域名 → 打开 `/#/admin` 上传收款码
 
 ## 关键 API

@@ -12,8 +12,8 @@
 2. **Sign in with GitHub** → 授权 Zeabur 访问 `youjia995-web/wenzhang`
 3. **Create New Project** → 命名 `wenzhang-prod`
 4. **Add Service** → **GitHub** → 选 `youjia995-web/wenzhang`：
-   - **Root Directory**: `server` ⚠️ 必须填
-   - Build / Start Command 都留空（用 `server/zbpack.json`）
+   - **Root Directory**: 留空 / 使用仓库根目录 ⚠️ 不要填 `server`
+   - Build / Start Command 都留空（用根目录 `zbpack.json`，其中 `app_dir` 指向 `server`）
 5. **关键步骤 — 挂载持久卷**（必须！否则 SQLite 数据容器重启就丢）：
    - 主服务 → **Settings** → **Volumes** → **Add Volume**
    - **Mount Path**: `/data`
@@ -67,7 +67,7 @@ npm run dev
 ├── server/    Node.js + Fastify + Prisma + SQLite 后端
 │   ├── prisma/        schema + migrations + seed + dev.db（gitignored）
 │   ├── scripts/       postbuild 脚本（复制 web/ 到 dist/）
-│   ├── zbpack.json    Zeabur 一键部署配置（含 volume 声明）
+│   ├── zbpack.json    后端目录部署兜底配置
 │   └── data/          （无，SQLite 文件落在 prisma/data/）
 ├── web/       读者 + 作者前端（原生 JS SPA）
 └── docs/
@@ -100,6 +100,7 @@ npm run dev
 
 ## Zeabur 部署的配置文件
 
-- `server/zbpack.json` — Zeabur 构建/启动/健康检查/卷配置（已配好）
+- `zbpack.json` — Zeabur 主配置：从仓库根目录部署，`app_dir` 指向 `server`
+- `server/zbpack.json` — 后端目录部署兜底配置；如果 Zeabur 的 Root Directory 填成 `server`，构建会因为找不到根目录 `web/` 而失败，避免线上无前端文件
 - `server/package.json` 的 `postbuild` — 把 `web/` 复制到 `dist/web/`
 - `server/scripts/copy-web.js` — 跨平台复制脚本

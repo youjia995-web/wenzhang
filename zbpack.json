@@ -1,0 +1,5 @@
+{
+  "app_dir": "server",
+  "build_command": "if [ -d server ]; then cd server; fi; npm install && npm run build",
+  "start_command": "if [ -d server ]; then cd server; fi; mkdir -p /data && npx prisma migrate deploy && node dist/index.js"
+}
