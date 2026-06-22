@@ -47,6 +47,16 @@ function slugify(input: string): string {
   return ascii || `post-${Date.now().toString(36)}`;
 }
 
+function derivePreview(input: { preview?: string; content?: string; summary?: string }) {
+  const preview = input.preview?.trim();
+  if (preview) return preview;
+  const content = input.content?.trim();
+  if (content) return content.slice(0, 600);
+  const summary = input.summary?.trim();
+  if (summary) return summary;
+  return input.preview;
+}
+
 export async function adminRoutes(app: FastifyInstance) {
   // ---------- 登录 ----------
   app.post('/api/admin/login', async (req, reply) => {
@@ -228,7 +238,7 @@ export async function adminRoutes(app: FastifyInstance) {
       slug: z.string().max(120).optional(),
       title: z.string().min(1).max(200),
       summary: z.string().max(500),
-      preview: z.string().min(1),
+      preview: z.string().default(''),
       content: z.string().min(1),
       coverUrl: z.preprocess((value) => {
         if (typeof value !== 'string') return null;
@@ -252,10 +262,12 @@ export async function adminRoutes(app: FastifyInstance) {
     });
     const postSchema = postBaseSchema.transform((data) => ({
       ...data,
+      preview: derivePreview(data) || data.content,
       priceCents: data.isPaid ? Math.max(data.priceCents ?? 990, 1) : 0,
     }));
     const postUpdateSchema = postBaseSchema.partial().transform((data) => ({
       ...data,
+      preview: derivePreview(data),
       priceCents:
         data.isPaid === false
           ? 0

@@ -931,12 +931,15 @@ async function renderAdminEdit(root, id) {
   `;
   const collectPostForm = () => {
     const fd = new FormData($('#postForm'));
+    const content = String(fd.get('content') || '');
+    const summary = String(fd.get('summary') || '');
+    const preview = String(fd.get('preview') || '').trim() || content.trim().slice(0, 600) || summary.trim();
     return {
       slug: String(fd.get('slug') || '').trim(),
       title: String(fd.get('title') || ''),
-      summary: String(fd.get('summary') || ''),
-      preview: String(fd.get('preview') || ''),
-      content: String(fd.get('content') || ''),
+      summary,
+      preview,
+      content,
       coverUrl: String(fd.get('coverUrl') || '').trim() || null,
       priceCents: parseInt(String(fd.get('priceCents') || '0'), 10),
       isPaid: fd.get('isPaid') === 'on',
