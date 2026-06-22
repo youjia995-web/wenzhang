@@ -35,6 +35,18 @@ async function requireAdmin(req: import('fastify').FastifyRequest, reply: import
   req.admin = { id: 'admin' };
 }
 
+function slugify(input: string): string {
+  const ascii = input
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return ascii || `post-${Date.now().toString(36)}`;
+}
+
 export async function adminRoutes(app: FastifyInstance) {
   // ---------- 登录 ----------
   app.post('/api/admin/login', async (req, reply) => {
@@ -170,7 +182,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     // ---------- 文章 CRUD ----------
     const postSchema = z.object({
-      slug: z.string().min(1).max(120).regex(/^[a-z0-9-]+$/),
+      slug: z.string().max(120).optional(),
       title: z.string().min(1).max(200),
       summary: z.string().max(500),
       preview: z.string().min(1),
@@ -182,10 +194,12 @@ export async function adminRoutes(app: FastifyInstance) {
 
     instance.post('/api/admin/posts', async (req, reply) => {
       const data = postSchema.parse(req.body);
+      const slug = slugify(data.slug || data.title);
       try {
         const post = await prisma.post.create({
           data: {
             ...data,
+            slug,
             publishedAt: data.status === 'PUBLISHED' ? new Date() : null,
           },
         });
@@ -202,11 +216,13 @@ export async function adminRoutes(app: FastifyInstance) {
     instance.put('/api/admin/posts/:id', async (req, reply) => {
       const { id } = req.params as { id: string };
       const data = postSchema.partial().parse(req.body);
+      const slug = data.slug !== undefined ? slugify(data.slug || data.title || '') : undefined;
       try {
         const post = await prisma.post.update({
           where: { id },
           data: {
             ...data,
+            slug,
             publishedAt:
               data.status === 'PUBLISHED'
                 ? new Date()

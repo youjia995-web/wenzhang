@@ -776,7 +776,7 @@ async function renderAdminEdit(root, id) {
     <form id="postForm" style="margin-top: var(--sp-6);">
       <div class="form-group">
         <label>URL Slug（英文短横线）</label>
-        <input class="form-control" name="slug" value="${escape(post.slug)}" required pattern="[a-z0-9-]+" />
+        <input class="form-control" name="slug" value="${escape(post.slug)}" placeholder="留空会按标题自动生成" />
       </div>
       <div class="form-group">
         <label>标题</label>
@@ -816,7 +816,7 @@ async function renderAdminEdit(root, id) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const data = {
-      slug: fd.get('slug'),
+      slug: String(fd.get('slug') || '').trim(),
       title: fd.get('title'),
       summary: fd.get('summary'),
       preview: fd.get('preview'),

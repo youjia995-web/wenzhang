@@ -1,5 +1,6 @@
 // Fastify 入口 — 极简版
 import Fastify from 'fastify';
+import { z } from 'zod';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
@@ -7,6 +8,7 @@ import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { env } from './config.js';
 import { publicRoutes } from './routes/public.js';
 import { paymentRoutes } from './routes/payment.js';
@@ -50,15 +52,17 @@ export async function buildApp() {
   // SPA fallback
   app.setNotFoundHandler((req, reply) => {
     if (req.method === 'GET' && !req.url.startsWith('/api/')) {
-      return reply.sendFile('index.html');
+      return readFile(join(webRoot, 'index.html'), 'utf8')
+        .then((html) => reply.type('text/html; charset=utf-8').send(html))
+        .catch(() => reply.code(404).send({ error: 'frontend_not_found' }));
     }
     return reply.code(404).send({ error: 'not_found' });
   });
 
   app.setErrorHandler((err, req, reply) => {
     req.log.error({ err }, 'unhandled error');
-    if ((err as { validation?: unknown }).validation) {
-      return reply.code(400).send({ error: 'validation_error' });
+    if (err instanceof z.ZodError || (err as { validation?: unknown }).validation) {
+      return reply.code(400).send({ error: 'validation_error', details: err.message });
     }
     return reply.code(500).send({ error: 'internal_error' });
   });
