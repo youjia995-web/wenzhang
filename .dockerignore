@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/.env
+**/.env.local
+**/*.log
+**/.DS_Store
+.git
+.zeabur
+.vercel
+data
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
