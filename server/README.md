@@ -28,6 +28,8 @@ npm run dev
 5. 填环境变量（同 `.env.example`），其中 `DATABASE_URL=file:/data/prod.db`
 6. 绑定域名 → 打开 `/#/admin` 上传收款码
 
+更新部署时不要删除 Zeabur 的 `/data` Volume，也不要修改 `DATABASE_URL`。文章、收款码和订单都在 `/data/prod.db`，代码更新只会执行增量 migration，不会主动清库。
+
 ## 关键 API
 
 | 路径 | 方法 | 说明 |

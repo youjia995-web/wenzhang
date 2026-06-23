@@ -18,6 +18,7 @@
    - 主服务 → **Settings** → **Volumes** → **Add Volume**
    - **Mount Path**: `/data`
    - **Size**: `1 GiB`（SQLite 单文件足够）
+   - 后续每次更新部署都继续使用这个卷，**不要删除 Volume，不要改 Mount Path**
    - ⚠️ 不要在 zbpack.json 里声明 volume，必须在控制台手动添加
 6. **添加环境变量**（主服务 → **Variables** 标签）：
 
@@ -30,6 +31,8 @@
 | `ADMIN_JWT_SECRET` | `openssl rand -hex 32` 生成的 64 字符 | 作者后台 JWT 密钥 |
 | `READER_TOKEN_SECRET` | `openssl rand -hex 32` 生成的 64 字符 | 读者 token 密钥 |
 | `PUBLIC_BASE_URL` | 你的 Zeabur 域名（先填占位，拿到正式域名再回来改）| 用于生成绝对 URL |
+
+> 数据保留规则：文章、收款二维码、订单都存放在 `/data/prod.db`。更新代码只会运行 `prisma migrate deploy` 做增量迁移，不会清空数据；如果部署后数据没了，优先检查 Zeabur 的 `/data` 持久卷是否仍挂在当前服务上，以及 `DATABASE_URL` 是否仍是 `file:/data/prod.db`。
 
 7. 等首次部署完成（约 2-3 分钟，会自动跑 `prisma migrate deploy` 建表）
 8. **Settings** → **Domains** → **Generate Domain**（拿到 `xxx.zeabur.app`）

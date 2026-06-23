@@ -206,6 +206,7 @@
       display: flex;
       gap: var(--sp-3);
       align-items: center;
+      flex-wrap: wrap;
       font-size: 13px;
       color: var(--fg-muted);
       margin-bottom: var(--sp-3);
@@ -256,6 +257,7 @@
       display: flex;
       gap: var(--sp-3);
       align-items: center;
+      flex-wrap: wrap;
       color: var(--fg-muted);
       font-size: 14px;
     }
@@ -280,6 +282,18 @@
       margin: var(--sp-10) 0 var(--sp-4);
     }
     .article-body strong { color: var(--fg); font-weight: 700; }
+    .article-image {
+      width: 100%;
+      max-height: 520px;
+      object-fit: contain;
+      border-radius: var(--r-md);
+      margin: var(--sp-6) 0;
+      background: var(--bg-subtle);
+    }
+    .article-header > .article-image {
+      margin-top: var(--sp-6);
+      margin-bottom: 0;
+    }
 
     /* —— 锁住效果 —— */
     .locked-section {

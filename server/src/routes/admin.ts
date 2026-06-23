@@ -353,7 +353,7 @@ export async function adminRoutes(app: FastifyInstance) {
           id: true, slug: true, title: true, status: true, priceCents: true,
           isPaid: true,
           coverUrl: true, isPinned: true, sortOrder: true, draftSavedAt: true,
-          publishedAt: true, createdAt: true, updatedAt: true,
+          viewCount: true, publishedAt: true, createdAt: true, updatedAt: true,
         },
       });
       return { posts };

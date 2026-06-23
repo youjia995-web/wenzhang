@@ -40,6 +40,8 @@ model Post {
   isPaid      Boolean    @default(true)
   /// 金额（分），避免浮点
   priceCents  Int        @default(990)
+  /// 文章详情页浏览量
+  viewCount   Int        @default(0)
   /// 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
   status      String     @default("DRAFT")
   publishedAt DateTime?

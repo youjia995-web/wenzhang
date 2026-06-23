@@ -38,6 +38,7 @@ export async function publicRoutes(app: FastifyInstance) {
         coverUrl: true,
         isPaid: true,
         priceCents: true,
+        viewCount: true,
         publishedAt: true,
       },
     });
@@ -58,6 +59,7 @@ export async function publicRoutes(app: FastifyInstance) {
         coverUrl: true,
         isPaid: true,
         priceCents: true,
+        viewCount: true,
         status: true,
         publishedAt: true,
       },
@@ -65,9 +67,15 @@ export async function publicRoutes(app: FastifyInstance) {
     if (!post || post.status !== 'PUBLISHED') {
       return reply.code(404).send({ error: 'not_found' });
     }
+    const viewed = await prisma.post.update({
+      where: { id: post.id },
+      data: { viewCount: { increment: 1 } },
+      select: { viewCount: true },
+    });
+    const postWithView = { ...post, viewCount: viewed.viewCount };
 
     if (!post.isPaid) {
-      return { post: { ...post, unlocked: true } };
+      return { post: { ...postWithView, unlocked: true } };
     }
 
     const unlockToken = req.headers[UNLOCK_TOKEN_HEADER] as string | undefined;
@@ -85,7 +93,7 @@ export async function publicRoutes(app: FastifyInstance) {
       }
     }
 
-    return { post: { ...post, unlocked } };
+    return { post: { ...postWithView, unlocked } };
   });
 
   // 取完整内容（必须带 unlock token）

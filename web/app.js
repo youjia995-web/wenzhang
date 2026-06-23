@@ -74,6 +74,7 @@ const Icon = {
 // Utils
 // ============================================================
 function fmtPrice(cents) { return '¥' + (cents / 100).toFixed(2); }
+function fmtViews(count) { return `${Number(count || 0).toLocaleString('zh-CN')} 浏览`; }
 
 function escape(s) {
   return (s ?? '').replace(/[&<>"']/g, c => ({
@@ -81,13 +82,43 @@ function escape(s) {
   })[c]);
 }
 
+function isSafeImageUrl(url) {
+  const value = String(url || '').trim();
+  if (/^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i.test(value)) return true;
+  try {
+    const parsed = new URL(value, location.origin);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function imageHtml(url, alt = '') {
+  const cleanUrl = String(url || '').trim();
+  if (!isSafeImageUrl(cleanUrl)) return escape(cleanUrl);
+  return `<img class="article-image" src="${escape(cleanUrl)}" alt="${escape(alt)}" loading="lazy" />`;
+}
+
 function renderMarkdown(md) {
-  return escape(md)
+  const imageTokens = [];
+  const tokenFor = (html) => {
+    const token = `__ARTICLE_IMAGE_${imageTokens.length}__`;
+    imageTokens.push({ token, html });
+    return token;
+  };
+  const withImages = String(md || '')
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_match, alt, url) => tokenFor(imageHtml(url, alt)))
+    .replace(/(^|\n)(https?:\/\/[^\s<>()]+?\.(?:png|jpe?g|gif|webp|svg)(?:\?[^\s<>()]*)?)(?=\n|$)/gi, (_match, prefix, url) => `${prefix}${tokenFor(imageHtml(url))}`);
+  let html = escape(withImages)
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\n\n/g, '</p><p>')
     .replace(/^/, '<p>')
     .replace(/$/, '</p>');
+  for (const item of imageTokens) {
+    html = html.replaceAll(item.token, item.html);
+  }
+  return html;
 }
 
 function postDraftKey(id) {
@@ -198,6 +229,7 @@ async function renderList(root) {
             <h2>${escape(p.title)}</h2>
             <div class="meta">
               <span class="price-tag">${p.isPaid ? fmtPrice(p.priceCents) : '免费'}</span>
+              <span>${fmtViews(p.viewCount)}</span>
               <span>${new Date(p.publishedAt).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}</span>
               <span>·</span>
               <span>约 ${Math.max(3, Math.round((p.summary || '').length / 80))} 分钟</span>
@@ -230,8 +262,11 @@ async function renderPost(root, slug) {
             <span>${new Date(post.publishedAt).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
             <span>·</span>
             <span class="price-tag">${post.isPaid ? fmtPrice(post.priceCents) : '免费'}</span>
+            <span>·</span>
+            <span>${fmtViews(post.viewCount)}</span>
           </div>
           ${post.summary ? `<p class="article-summary">${escape(post.summary)}</p>` : ''}
+          ${post.coverUrl ? imageHtml(post.coverUrl, post.title) : ''}
         </header>
         <div class="article-body">
           <div class="locked-section">${previewHtml}</div>
@@ -829,6 +864,7 @@ async function renderAdminPosts(root) {
               <span class="badge ${p.status === 'PUBLISHED' ? 'badge-ok' : p.status === 'DRAFT' ? 'badge-muted' : 'badge-warn'}">${p.status}</span>
               ${p.isPinned ? '<span class="badge badge-ok">置顶</span>' : ''}
               <span class="price-tag">${p.isPaid ? fmtPrice(p.priceCents) : '免费'}</span>
+              <span>${fmtViews(p.viewCount)}</span>
               <span>排序 ${p.sortOrder || 0}</span>
               <span>${new Date(p.updatedAt).toLocaleDateString('zh-CN')}</span>
             </div>

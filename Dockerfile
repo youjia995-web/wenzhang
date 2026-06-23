@@ -22,5 +22,6 @@ ENV PORT=3000
 ENV DATABASE_URL=file:/data/prod.db
 
 EXPOSE 3000
+VOLUME ["/data"]
 
 CMD ["sh", "-c", "mkdir -p /data && npx prisma migrate deploy && node dist/index.js"]
