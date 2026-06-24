@@ -121,6 +121,37 @@ function renderMarkdown(md) {
   return html;
 }
 
+function insertAtCursor(textarea, text) {
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  textarea.value = textarea.value.slice(0, start) + text + textarea.value.slice(end);
+  const next = start + text.length;
+  textarea.setSelectionRange(next, next);
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function fileToCompressedImageDataUrl(file, maxWidth = 1200, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('image_read_failed'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('image_decode_failed'));
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function postDraftKey(id) {
   return `post_draft_${id || 'new'}`;
 }
@@ -925,12 +956,13 @@ async function renderAdminEdit(root, id) {
         <input class="form-control" name="coverUrl" value="${escape(post.coverUrl || '')}" placeholder="https://..." />
       </div>
       <div class="form-group">
-        <label>公开预览（建议 20-30% 内容）</label>
+        <label>公开预览</label>
         <textarea class="form-control" name="preview" rows="6" style="font-family: var(--font-mono); font-size: 14px;">${escape(post.preview)}</textarea>
       </div>
       <div class="form-group">
         <label>完整内容（付费后可见）</label>
-        <textarea class="form-control" name="content" rows="14" style="font-family: var(--font-mono); font-size: 14px;">${escape(post.content)}</textarea>
+        <textarea class="form-control" name="content" rows="14" style="font-family: var(--font-mono); font-size: 14px;" placeholder="可直接粘贴图片，系统会插入图片标记">${escape(post.content)}</textarea>
+        <p class="field-hint" id="contentPasteStatus">支持直接粘贴图片，图片会保存到文章正文中。</p>
       </div>
       <div class="form-group">
         <label>价格（分）= ${fmtPrice(post.priceCents)}</label>
@@ -969,7 +1001,7 @@ async function renderAdminEdit(root, id) {
     const fd = new FormData($('#postForm'));
     const content = String(fd.get('content') || '');
     const summary = String(fd.get('summary') || '');
-    const preview = String(fd.get('preview') || '').trim() || content.trim().slice(0, 600) || summary.trim();
+    const preview = String(fd.get('preview') || '');
     return {
       slug: String(fd.get('slug') || '').trim(),
       title: String(fd.get('title') || ''),
@@ -997,6 +1029,24 @@ async function renderAdminEdit(root, id) {
   };
   $('[name="isPaid"]').addEventListener('change', syncPaidFields);
   syncPaidFields();
+  $('[name="content"]').addEventListener('paste', async (e) => {
+    const files = Array.from(e.clipboardData?.files || []).filter((file) => file.type.startsWith('image/'));
+    if (!files.length) return;
+    e.preventDefault();
+    const textarea = e.currentTarget;
+    const status = $('#contentPasteStatus');
+    status.textContent = '正在处理粘贴的图片...';
+    try {
+      for (const file of files) {
+        const dataUrl = await fileToCompressedImageDataUrl(file);
+        insertAtCursor(textarea, `\n\n![粘贴图片](${dataUrl})\n\n`);
+      }
+      status.textContent = `已插入 ${files.length} 张图片`;
+      setTimeout(() => { status.textContent = '支持直接粘贴图片，图片会保存到文章正文中。'; }, 2400);
+    } catch (err) {
+      status.textContent = '图片粘贴失败，请换一张图片重试。';
+    }
+  });
   let draftTimer;
   $('#postForm').addEventListener('input', () => {
     clearTimeout(draftTimer);

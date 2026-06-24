@@ -20,7 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export async function buildApp() {
   const app = Fastify({
     logger: { level: env.NODE_ENV === 'production' ? 'info' : 'debug' },
-    bodyLimit: 4 * 1024 * 1024, // 4MB（收款码 base64 最大 600KB）
+    bodyLimit: 12 * 1024 * 1024, // 允许正文粘贴压缩后的图片 data URL
   });
 
   await app.register(helmet, { contentSecurityPolicy: false });
